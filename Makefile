@@ -1,12 +1,14 @@
-# Environment variables
-export PYTHONPATH="."
+SHELL := /bin/zsh
 
-# Project variables
-PROJECT_NAME=backend
-APP_MODULE=$(PROJECT_NAME).main
+BACKEND_PORT ?= 8000
 
-.PHONY: backend
+.PHONY: backend frontend app
 
 backend:
-	@echo "Starting FastAPI backend for $(PROJECT_NAME)..."
-	.venv/bin/uvicorn $(APP_MODULE):app --reload --host 127.0.0.1 --port 8000
+	cd backend && uv run uvicorn main:app --reload --port $(BACKEND_PORT)
+
+frontend:
+	cd frontend && npm run dev
+
+app:
+	$(MAKE) -j2 backend frontend

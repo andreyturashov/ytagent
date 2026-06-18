@@ -1,20 +1,57 @@
-import { videos } from "@/mock/videos";
-import { messages } from "@/mock/messages";
+"use client";
 
-import { VideoSidebar } from "@/components/video-sidebar";
+import { useState } from "react";
+
+import { sendMessage } from "@/lib/chat-api";
+
+import { Message } from "@/types/message";
+import { ChatInput } from "@/components/chat-input";  
 import { ChatWindow } from "@/components/chat-window";
-import { ChatInput } from "@/components/chat-input";
 
 export default function HomePage() {
+  const [messages, setMessages] =
+    useState<Message[]>([]);
+
+  const handleSend = async (
+    text: string,
+  ) => {
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+    ]);
+
+    const response =
+      await sendMessage({
+        message: text,
+      });
+
+    const assistantMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: response.answer,
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      assistantMessage,
+    ]);
+  };
+
   return (
-    <div className="h-screen flex">
-      <VideoSidebar videos={videos} />
+    <>
+      <ChatWindow
+        messages={messages}
+      />
 
-      <div className="flex flex-1 flex-col">
-        <ChatWindow messages={messages} />
-
-        <ChatInput />
-      </div>
-    </div>
+      <ChatInput
+        onSend={handleSend}
+      />
+    </>
   );
 }

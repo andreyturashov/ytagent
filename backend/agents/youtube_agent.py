@@ -6,7 +6,7 @@ from langchain_ollama import ChatOllama
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
-from backend.integrations.youtube import YouTubeIntegration
+from integrations.youtube import YouTubeIntegration
 
 
 # Graph state definition.
