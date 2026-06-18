@@ -1,6 +1,6 @@
-from integrations.youtube import YouTubeIntegration
+from backend.integrations.youtube import YouTubeIntegration
 from fastapi import FastAPI, HTTPException
-from agents.youtube_agent import app as agent_app
+from backend.agents.youtube_agent import app as agent_app
 
 app = FastAPI()
 

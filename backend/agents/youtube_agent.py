@@ -4,7 +4,7 @@ from langgraph.graph import StateGraph, END
 from langchain_ollama import ChatOllama
 from youtube_transcript_api import YouTubeTranscriptApi
 
-from integrations.youtube import YouTubeIntegration
+from backend.integrations.youtube import YouTubeIntegration
 
 
 class State(TypedDict):
