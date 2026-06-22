@@ -12,3 +12,6 @@ frontend:
 
 app:
 	$(MAKE) -j2 backend frontend
+
+check:
+	cd backend && uv run ruff check . --fix

@@ -1,8 +1,9 @@
-from integrations.youtube import YouTubeIntegration
 from fastapi import FastAPI, HTTPException
-from agents.youtube_agent import app as agent_app
-from routers.chat import router as chat_router
 from fastapi.middleware.cors import CORSMiddleware
+
+from agents.youtube_agent import app as agent_app
+from integrations.youtube import YouTubeIntegration
+from routers.chat import router as chat_router
 
 app = FastAPI()
 
@@ -22,7 +23,7 @@ app.add_middleware(
 
 
 @app.get("/transcript/{video_id}")
-async def get_transcript(video_id: str):
+async def get_transcript(video_id: str) -> dict[str, str]:
     try:
         youtube_integration = YouTubeIntegration()
 
@@ -37,11 +38,11 @@ async def get_transcript(video_id: str):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/summary/{video_id}")
-async def get_summary(video_id: str):
+async def get_summary(video_id: str) -> dict[str, str]:
     try:
         result = await agent_app.ainvoke({"video_id": video_id})
 
@@ -51,4 +52,4 @@ async def get_summary(video_id: str):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

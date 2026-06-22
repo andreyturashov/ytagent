@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     NoTranscriptFound,
@@ -6,16 +8,15 @@ from youtube_transcript_api._errors import (
     VideoUnavailable,
 )
 from youtube_transcript_api._transcripts import FetchedTranscript
-import logging
 
 logger = logging.getLogger(__name__)
 
 
 class YouTubeIntegration:
-    def __init__(self):
+    def __init__(self) -> None:
         self.ytt_api = YouTubeTranscriptApi()
 
-    async def fetch_transcript(self, video_id: str) -> FetchedTranscript:
+    async def fetch_transcript(self, video_id: str) -> FetchedTranscript | None:
         """
         Fetch transcription for a specific video
 
@@ -23,7 +24,7 @@ class YouTubeIntegration:
             video_id (str): The ID of the YouTube video for which to fetch the transcript
 
         Returns:
-            FetchedTranscript: The fetched transcript object
+            FetchedTranscript | None: The fetched transcript object or None if not found
         """
         try:
             transcript = await asyncio.to_thread(self.ytt_api.fetch, video_id=video_id)
@@ -36,12 +37,13 @@ class YouTubeIntegration:
 
             return None
 
-    def transcript_to_text(self, transcript: FetchedTranscript) -> str:
+    def transcript_to_text(self, transcript: FetchedTranscript | None) -> str:
         """
         Convert a fetched transcript to a string
 
         Args:
-            transcript (FetchedTranscript): The fetched transcript object
+            transcript (FetchedTranscript | None): The fetched transcript object
+            or None if not found
 
         Returns:
             str: The transcript as a string
