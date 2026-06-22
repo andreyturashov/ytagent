@@ -1,14 +1,14 @@
 from typing import Any, NotRequired, TypedDict
 
-from langgraph.graph import StateGraph, END
 from langchain_ollama import ChatOllama
+from langgraph.graph import END, StateGraph
 
 from integrations.youtube import YouTubeIntegration
 
 
 class ChatState(TypedDict):
     # Video selected in frontend
-    video_id: NotRequired[str]
+    video_id: NotRequired[str | None]
 
     # User message
     message: str
@@ -53,6 +53,9 @@ general
 
     response = await llm.ainvoke(prompt)
 
+    if not isinstance(response.content, str):
+        raise ValueError("Expected response content to be a string")
+
     route = response.content.strip().lower()
 
     if route not in ["video", "general"]:
@@ -65,7 +68,7 @@ general
 
 async def video_answer_node(
     state: ChatState,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """
     Fetch transcript and answer using transcript content.
     """
@@ -73,7 +76,7 @@ async def video_answer_node(
     youtube = YouTubeIntegration()
 
     transcript = await youtube.fetch_transcript_text(
-        video_id=state["video_id"],
+        video_id=str(state["video_id"]),
     )
 
     if not transcript:
@@ -108,7 +111,7 @@ Instructions:
 
 async def general_answer_node(
     state: ChatState,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """
     Answer general questions without using transcript.
     """

@@ -9,7 +9,6 @@ export const messages: Message[] = [
   {
     id: "2",
     role: "assistant",
-    content:
-      "This video introduces LangGraph and agent workflows.",
+    content: "This video introduces LangGraph and agent workflows.",
   },
 ];

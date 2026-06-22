@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from agents.youtube_agent import app as agent_app
-from agents.youtube_agent import ChatState
 
+from agents.youtube_agent import ChatState
+from agents.youtube_agent import app as agent_app
 from schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -21,7 +21,6 @@ async def chat(
         "video_id": request.video_id,
         "message": request.message,
     }
-    print(chat_state)
 
     result = await agent_app.ainvoke(chat_state)
 
