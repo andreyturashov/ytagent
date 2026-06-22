@@ -14,7 +14,10 @@ export async function sendMessage(
         "Content-Type":
           "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        "message": payload.message,
+        "video_id": "EB7dQv1ALCU" 
+      }),
     },
   );
 

@@ -27,12 +27,12 @@ class YouTubeIntegration:
         """
         try:
             transcript = await asyncio.to_thread(self.ytt_api.fetch, video_id=video_id)
-            logger.info(f"Successfully fetched transcript for video {video_id}")
+            logger.info("Successfully fetched transcript for video %s", video_id)
 
             return transcript
 
         except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable) as e:
-            logger.error(f"Error fetching transcript for video {video_id}: {e}")
+            logger.error("Error fetching transcript for video %s: %s", video_id, e)
 
             return None
 
