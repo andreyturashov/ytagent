@@ -45,20 +45,24 @@ jobs:
           name: coverage-report
           path: backend/htmlcov
 
-  frontend:
-    runs-on: ubuntu-latest
+frontend:
+  runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: frontend
+  defaults:
+    run:
+      working-directory: frontend
 
-    steps:
-      - uses: actions/checkout@v4
+  steps:
+    - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run build
+    - run: npm ci
+
+    - run: npm run lint
+
+    - run: npm run test
+
+    - run: npm run build
