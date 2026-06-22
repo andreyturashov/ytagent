@@ -5,37 +5,45 @@ on:
   pull_request:
 
 jobs:
+  backend:
+    runs-on: ubuntu-latest
 
-backend:
-  runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
 
-  defaults:
-    run:
-      working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
 
-  steps:
-    - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
+      - name: Install dependencies
+        run: uv sync
 
-    - name: Install dependencies
-      run: uv sync
+      - name: Ruff
+        run: uv run ruff check .
 
-    - name: Ruff
-      run: uv run ruff check .
+      - name: MyPy
+        run: uv run mypy .
 
-    - name: MyPy
-      run: uv run mypy .
+      - name: Tests
+        run: >
+          uv run pytest
+          --cov=app
+          --cov-report=html
 
-    - name: Tests
-      run: uv run pytest
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/htmlcov
 
   frontend:
     runs-on: ubuntu-latest
@@ -52,4 +60,5 @@ backend:
           node-version: 22
 
       - run: npm ci
-      - run: npm run check
+      - run: npm run lint
+      - run: npm run build
