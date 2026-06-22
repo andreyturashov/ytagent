@@ -1,68 +1,98 @@
-from typing import Any, NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict, cast
 
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
+from pydantic import BaseModel
 
 from integrations.youtube import YouTubeIntegration
 
 
 class ChatState(TypedDict):
-    # Video selected in frontend
+    # Video selected in frontend.
     video_id: NotRequired[str | None]
 
-    # User message
+    # User message.
     message: str
 
-    # Filled when transcript is fetched
+    # Filled when transcript is fetched.
     transcript: NotRequired[str]
 
-    # Filled by router node
-    route: NotRequired[str]
+    # Router decision.
+    requires_transcript: NotRequired[bool]
 
-    # Final answer returned to API
+    # Final answer.
     answer: NotRequired[str]
 
 
-# Ollama LLM
+class RouteDecision(BaseModel):
+    """
+    Structured output returned by router LLM.
+    """
+
+    requires_transcript: bool
+
+
 llm = ChatOllama(
     model="llama3.1",
     temperature=0,
 )
 
+router_llm = llm.with_structured_output(
+    RouteDecision,
+)
+
 
 async def router_node(
     state: ChatState,
-) -> dict[str, str]:
+) -> dict[str, bool]:
     """
-    Decide whether the user's question
-    requires information from the video transcript.
+    Decide whether answering the question
+    requires access to the selected video's transcript.
     """
 
-    prompt = f"""
-Decide whether the user's question requires information from the selected YouTube video.
+    # If no video selected,
+    # transcript cannot be used anyway.
+    if not state.get("video_id"):
+        return {
+            "requires_transcript": False,
+        }
 
-Question:
-{state["message"]}
+    response = cast(
+        RouteDecision,
+        await router_llm.ainvoke(f"""
+        Determine whether answering the user's question
+        requires information from the selected YouTube video.
 
-Answer ONLY with one word:
+        Question:
+        {state["message"]}
 
-video
-or
-general
-"""
+        Return:
 
-    response = await llm.ainvoke(prompt)
+        requires_transcript = true
 
-    if not isinstance(response.content, str):
-        raise ValueError("Expected response content to be a string")
+        when the answer depends on the video's content.
 
-    route = response.content.strip().lower()
+        Examples:
 
-    if route not in ["video", "general"]:
-        route = "general"
+        "What did the speaker say about AI?"
+        -> true
+
+        "Summarize this video"
+        -> true
+
+        "What are the key takeaways?"
+        -> true
+
+        "What is Python?"
+        -> false
+
+        "Who created FastAPI?"
+        -> false
+    """),
+    )
 
     return {
-        "route": route,
+        "requires_transcript": response.requires_transcript,
     }
 
 
@@ -70,13 +100,20 @@ async def video_answer_node(
     state: ChatState,
 ) -> dict[str, Any]:
     """
-    Fetch transcript and answer using transcript content.
+    Fetch transcript and answer using transcript.
     """
+
+    video_id = state.get("video_id")
+
+    if not video_id:
+        return {
+            "answer": "No video selected.",
+        }
 
     youtube = YouTubeIntegration()
 
     transcript = await youtube.fetch_transcript_text(
-        video_id=str(state["video_id"]),
+        video_id=video_id,
     )
 
     if not transcript:
@@ -84,42 +121,47 @@ async def video_answer_node(
             "answer": "Transcript was not found for this video.",
         }
 
-    prompt = f"""
-You are helping a user understand a YouTube video.
+    response = await llm.ainvoke(f"""
+        You are helping a user understand a YouTube video.
 
-Transcript:
+        Transcript:
 
-{transcript}
+        {transcript}
 
-Question:
+        Question:
 
-{state["message"]}
+        {state["message"]}
 
-Instructions:
-- Answer using information from the transcript.
-- If the answer is not present in the transcript, say so.
-- Be concise and helpful.
-"""
+        Instructions:
+        - Answer using information from the transcript.
+        - If the answer is not contained in the transcript,
+        clearly state that.
+        - Be concise and helpful.
+    """)
 
-    response = await llm.ainvoke(prompt)
+    answer = response.content if isinstance(response.content, str) else str(response.content)
 
     return {
         "transcript": transcript,
-        "answer": response.content,
+        "answer": answer,
     }
 
 
 async def general_answer_node(
     state: ChatState,
-) -> dict[str, Any]:
+) -> dict[str, str]:
     """
-    Answer general questions without using transcript.
+    Answer without transcript.
     """
 
-    response = await llm.ainvoke(state["message"])
+    response = await llm.ainvoke(
+        state["message"],
+    )
+
+    answer = response.content if isinstance(response.content, str) else str(response.content)
 
     return {
-        "answer": response.content,
+        "answer": answer,
     }
 
 
@@ -127,19 +169,17 @@ def route(
     state: ChatState,
 ) -> str:
     """
-    Conditional edge router.
+    Conditional edge callback.
     """
 
-    if state["route"] == "video":
+    if state.get("requires_transcript"):
         return "video"
 
     return "general"
 
 
-# Build graph
 graph = StateGraph(ChatState)
 
-# Register nodes
 graph.add_node(
     "router",
     router_node,
@@ -155,10 +195,10 @@ graph.add_node(
     general_answer_node,
 )
 
-# Entry point
-graph.set_entry_point("router")
+graph.set_entry_point(
+    "router",
+)
 
-# Conditional routing
 graph.add_conditional_edges(
     "router",
     route,
@@ -168,7 +208,6 @@ graph.add_conditional_edges(
     },
 )
 
-# Finish execution
 graph.add_edge(
     "video",
     END,
@@ -179,5 +218,4 @@ graph.add_edge(
     END,
 )
 
-# Compile graph
 app: Any = graph.compile()
