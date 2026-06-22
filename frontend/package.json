@@ -9,6 +9,7 @@
     "lint": "eslint",
     "format": "prettier . --write",
     "typecheck": "tsc --noEmit",
+    "test": "vitest",
     "check": "npm run lint && npm run format && npm run typecheck"
   },
   "dependencies": {
@@ -21,10 +22,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "prettier": "^3.8.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }
