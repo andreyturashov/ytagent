@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from admin.setup import setup_admin
+from db.session import engine
 from routers.chat import router as chat_router
 from routers.video import router as video_router
 
@@ -16,6 +18,11 @@ app.include_router(
     video_router,
     prefix="/api",
     tags=["video"],
+)
+
+setup_admin(
+    app,
+    engine,
 )
 
 app.add_middleware(
