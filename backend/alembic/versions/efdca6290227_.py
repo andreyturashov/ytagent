@@ -1,8 +1,8 @@
-"""create videos table
+"""
 
-Revision ID: 6fc66f02f8df
+Revision ID: efdca6290227
 Revises:
-Create Date: 2026-06-22 15:16:06.959253
+Create Date: 2026-06-23 15:36:06.520342
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "6fc66f02f8df"
+revision: str = "efdca6290227"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
