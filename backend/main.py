@@ -1,9 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from agents.youtube_agent import app as agent_app
-from integrations.youtube import YouTubeIntegration
 from routers.chat import router as chat_router
+from routers.video import router as video_router
 
 app = FastAPI()
 
@@ -13,6 +12,12 @@ app.include_router(
     tags=["chat"],
 )
 
+app.include_router(
+    video_router,
+    prefix="/api",
+    tags=["video"],
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -20,36 +25,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/transcript/{video_id}")
-async def get_transcript(video_id: str) -> dict[str, str]:
-    try:
-        youtube_integration = YouTubeIntegration()
-
-        result = await youtube_integration.fetch_transcript_text(video_id=video_id)
-
-        if not result:
-            raise HTTPException(status_code=404, detail="Transcript not found")
-
-        return {
-            "video_id": video_id,
-            "transcript": result,
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.get("/summary/{video_id}")
-async def get_summary(video_id: str) -> dict[str, str]:
-    try:
-        result = await agent_app.ainvoke({"video_id": video_id})
-
-        return {
-            "video_id": video_id,
-            "summary": result["summary"],
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
