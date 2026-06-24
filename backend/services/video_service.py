@@ -28,7 +28,7 @@ class VideoService:
 
         return video
 
-    async def get_transcript(self, youtube_video_id: str) -> str | None:
+    async def get_or_create_transcript(self, youtube_video_id: str) -> str | None:
         video = await self.get_video_by_youtube_id(youtube_video_id)
 
         if video and video.transcript:

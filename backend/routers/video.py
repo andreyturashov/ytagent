@@ -11,7 +11,7 @@ router = APIRouter()
 async def get_transcript(video_id: str, db: DbSession) -> dict[str, str]:
     try:
         service = VideoService(db)
-        transcript = await service.get_transcript(video_id)
+        transcript = await service.get_or_create_transcript(video_id)
 
         if not transcript:
             raise HTTPException(status_code=404, detail="Transcript not found")
