@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { render } from "@testing-library/react";
+import { describe, it, vi } from "vitest";
 
-describe("math", () => {
-  it("adds numbers", () => {
-    expect(2 + 2).toBe(4);
+import { ChatInput } from "./chat-input";
+
+describe("ChatInput", () => {
+  it("renders", () => {
+    render(<ChatInput onSend={vi.fn()} />);
   });
 });
