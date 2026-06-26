@@ -23,8 +23,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
@@ -44,7 +43,7 @@ jobs:
           --cov-report=html
           --cov-report=json
 
-      - name: Upload Backend Coverage Artifact
+      - name: Upload backend coverage
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage
@@ -66,57 +65,61 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - run: npm run lint
+      - name: Lint
+        run: npm run lint
 
-      - name: Tests with coverage
-        run: npx vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text
+      - name: Tests
+        run: npx vitest run --coverage
 
-      - name: Upload Frontend Coverage Artifact
+      - name: Build
+        run: npm run build
+
+      - name: Upload frontend coverage
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
-          path: frontend/coverage/coverage-summary.json
-
-      - run: npm run build
+          path: |
+            frontend/coverage
+            frontend/coverage/coverage-summary.json
 
   coverage-comment:
     if: github.event_name == 'pull_request'
-    needs: [backend, frontend]
+    needs:
+      - backend
+      - frontend
+
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - uses: actions/download-artifact@v4
-      with:
-        name: backend-coverage
-        path: backend-coverage
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend-coverage
 
-    - uses: actions/download-artifact@v4
-      with:
-        name: frontend-coverage
-        path: frontend-coverage
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend-coverage
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-    - name: Generate coverage report
-      run: python .github/scripts/coverage_report.py
+      - name: Generate coverage report
+        run: python .github/scripts/coverage_report.py
 
-    - name: Read coverage report
-      id: coverage
-      shell: bash
-      run: |
-        echo "report<<EOF" >> "$GITHUB_OUTPUT"
-        cat coverage.md >> "$GITHUB_OUTPUT"
-        echo "EOF" >> "$GITHUB_OUTPUT"
+      - name: Show generated report
+        run: cat coverage.md
 
-    - name: Publish coverage comment
-      uses: marocchino/sticky-pull-request-comment@v2
-      with:
-        header: coverage
-        message: |
-          ${{ steps.coverage.outputs.report }}
+      - name: Publish coverage comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage.md
