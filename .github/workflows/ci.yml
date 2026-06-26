@@ -87,56 +87,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: backend-coverage
-          path: backend-coverage
+    - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: frontend-coverage
-          path: frontend-coverage
+    - uses: actions/download-artifact@v4
+      with:
+        name: backend-coverage
+        path: backend-coverage
 
-      - name: Generate PR comment
-        uses: MishaKav/pytest-coverage-comment@main
-        with:
-          pytest-coverage-path: backend-coverage/coverage.json
-          title: "Backend Coverage"
-          badge-title: "Backend"
-          junitxml-title: ""
-          coverage-path-prefix: "backend/"
-          create-new-comment: true
+    - uses: actions/download-artifact@v4
+      with:
+        name: frontend-coverage
+        path: frontend-coverage
 
-      - name: Frontend coverage summary
-        id: frontend-cov
-        run: |
-          COV_FILE="frontend-coverage/coverage-summary.json"
-          if [ -f "$COV_FILE" ]; then
-            TOTAL=$(python3 -c "
-          import json
-          with open('$COV_FILE') as f:
-              data = json.load(f)
-          total = data.get('total', {})
-          lines = total.get('lines', {}).get('pct', 'N/A')
-          branches = total.get('branches', {}).get('pct', 'N/A')
-          functions = total.get('functions', {}).get('pct', 'N/A')
-          stmts = total.get('statements', {}).get('pct', 'N/A')
-          print(f'| Lines | Branches | Functions | Statements |')
-          print(f'|-------|----------|-----------|------------|')
-          print(f'| {lines}% | {branches}% | {functions}% | {stmts}% |')
-          ")
-            echo "table<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$TOTAL" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
-          else
-            echo "table=No frontend coverage data found." >> "$GITHUB_OUTPUT"
-          fi
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
 
-      - name: Post frontend coverage comment
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: frontend-coverage
-          message: |
-            ## 🟢 Frontend Coverage
+    - name: Generate coverage report
+      run: python .github/scripts/coverage_report.py
 
-            ${{ steps.frontend-cov.outputs.table }}
+    - name: Read coverage report
+      id: coverage
+      shell: bash
+      run: |
+        echo "report<<EOF" >> "$GITHUB_OUTPUT"
+        cat coverage.md >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
+    - name: Publish coverage comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: coverage
+        message: |
+          ${{ steps.coverage.outputs.report }}
