@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Text, func
+from sqlalchemy import DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.base import Base
@@ -11,6 +11,12 @@ class Video(Base):
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
+    )
+
+    knowledge_item_id: Mapped[int] = mapped_column(
+        ForeignKey("knowledge_items.id"),
+        unique=True,
+        index=True,
     )
 
     youtube_video_id: Mapped[str] = mapped_column(
