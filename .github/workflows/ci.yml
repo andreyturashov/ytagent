@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -17,7 +21,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -36,33 +40,103 @@ jobs:
       - name: Tests
         run: >
           uv run pytest
-          --cov=app
+          --cov=.
           --cov-report=html
+          --cov-report=json
 
-      - name: Upload Coverage Report
+      - name: Upload Backend Coverage Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: backend/htmlcov
+          name: backend-coverage
+          path: |
+            backend/htmlcov
+            backend/coverage.json
 
-frontend:
-  runs-on: ubuntu-latest
+  frontend:
+    runs-on: ubuntu-latest
 
-  defaults:
-    run:
-      working-directory: frontend
+    defaults:
+      run:
+        working-directory: frontend
 
-  steps:
-    - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 22
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-    - run: npm ci
+      - run: npm ci
 
-    - run: npm run lint
+      - run: npm run lint
 
-    - run: npm run test
+      - name: Tests with coverage
+        run: npx vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text
 
-    - run: npm run build
+      - name: Upload Frontend Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/coverage-summary.json
+
+      - run: npm run build
+
+  coverage-comment:
+    if: github.event_name == 'pull_request'
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend-coverage
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend-coverage
+
+      - name: Generate PR comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: backend-coverage/coverage.json
+          title: "Backend Coverage"
+          badge-title: "Backend"
+          junitxml-title: ""
+          coverage-path-prefix: "backend/"
+          create-new-comment: true
+
+      - name: Frontend coverage summary
+        id: frontend-cov
+        run: |
+          COV_FILE="frontend-coverage/coverage-summary.json"
+          if [ -f "$COV_FILE" ]; then
+            TOTAL=$(python3 -c "
+          import json
+          with open('$COV_FILE') as f:
+              data = json.load(f)
+          total = data.get('total', {})
+          lines = total.get('lines', {}).get('pct', 'N/A')
+          branches = total.get('branches', {}).get('pct', 'N/A')
+          functions = total.get('functions', {}).get('pct', 'N/A')
+          stmts = total.get('statements', {}).get('pct', 'N/A')
+          print(f'| Lines | Branches | Functions | Statements |')
+          print(f'|-------|----------|-----------|------------|')
+          print(f'| {lines}% | {branches}% | {functions}% | {stmts}% |')
+          ")
+            echo "table<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$TOTAL" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "table=No frontend coverage data found." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post frontend coverage comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: frontend-coverage
+          message: |
+            ## 🟢 Frontend Coverage
+
+            ${{ steps.frontend-cov.outputs.table }}
