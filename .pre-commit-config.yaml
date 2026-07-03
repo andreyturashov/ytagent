@@ -21,7 +21,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: bash -c 'cd backend && uv run mypy .'
+        entry: bash -c 'cd backend && . .venv/bin/activate && python -m mypy .'
         language: system
         pass_filenames: false
 
@@ -29,6 +29,6 @@ repos:
     hooks:
       - id: frontend-check
         name: frontend-check
-        entry: bash -c 'cd frontend && npm run check'
+        entry: bash -lc 'cd frontend; export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; npm run check'
         language: system
         pass_filenames: false
