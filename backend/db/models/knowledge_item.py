@@ -1,6 +1,7 @@
 # db/models/knowledge_item.py
 
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,6 +9,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from db.base import Base
 from db.models.chat_knowledge import ChatKnowledge
 from db.models.video import Video
+
+
+class KnowledgeType(StrEnum):
+    VIDEO = "video"
+    WEBSITE = "website"
+    PDF = "pdf"
+    GITHUB = "github"
 
 
 class KnowledgeItem(Base):
