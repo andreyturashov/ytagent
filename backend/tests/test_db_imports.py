@@ -1,7 +1,7 @@
 import sys
 
 
-def test_importing_db_base_does_not_raise_circular_import_error():
+def test_importing_db_base_does_not_raise_circular_import_error() -> None:
     for module_name in [
         "db.base",
         "db.models",

@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from db.models.knowledge_item import KnowledgeItem, KnowledgeType
 from db.models.video import Video
 from integrations.youtube import YouTubeIntegration
 
@@ -18,7 +19,15 @@ class VideoService:
         return result.scalar_one_or_none()
 
     async def create_video(self, youtube_video_id: str, transcript: str) -> Video:
+        knowledge_item = KnowledgeItem(
+            type=KnowledgeType.VIDEO,
+            title=youtube_video_id,
+        )
+        self.session.add(knowledge_item)
+        await self.session.flush()
+
         video = Video(
+            knowledge_item_id=knowledge_item.id,
             youtube_video_id=youtube_video_id,
             transcript=transcript,
         )
