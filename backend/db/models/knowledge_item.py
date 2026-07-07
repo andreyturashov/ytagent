@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
 from db.models.chat_knowledge import ChatKnowledge
-from db.models.video import Video
 
 
 class KnowledgeType(StrEnum):
