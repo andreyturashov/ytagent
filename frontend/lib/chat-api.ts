@@ -12,6 +12,8 @@ export async function sendMessage(payload: ChatRequest): Promise<ChatResponse> {
     body: JSON.stringify({
       message: payload.message,
       video_id: videoId,
+      user_id: 1,
+      chat_id: 1,
     }),
   });
 

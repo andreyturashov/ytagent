@@ -1,13 +1,22 @@
-from fastapi import APIRouter
-from langchain_core.messages import AIMessage, HumanMessage
+from typing import Annotated
 
-from agents.youtube_agent import app as agent_app
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from db.session import get_db
 from schemas.chat import (
     ChatRequest,
     ChatResponse,
 )
+from services.conversation_service import ConversationService
 
 router = APIRouter()
+
+
+async def get_session() -> AsyncSession:
+    async for session in get_db():
+        return session
+    raise RuntimeError("No session available")
 
 
 @router.post(
@@ -16,25 +25,19 @@ router = APIRouter()
 )
 async def chat(
     request: ChatRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatResponse:
-    result = await agent_app.ainvoke(
-        {
-            "video_id": request.video_id,
-            "messages": [
-                HumanMessage(
-                    content=request.message,
-                )
-            ],
-        },
-        config={
-            "configurable": {
-                "thread_id": "chat_1",
-            }
-        },
+    conversation_service = ConversationService(
+        session=session,
     )
 
-    last_message = result["messages"][-1]
+    answer = await conversation_service.send_message(
+        user_id=1,
+        chat_id=1,
+        message=request.message,
+        youtube_video_id=request.video_id,
+    )
 
-    answer = str(last_message.content) if isinstance(last_message, AIMessage) else ""
-
-    return ChatResponse(answer=answer)
+    return ChatResponse(
+        answer=answer,
+    )

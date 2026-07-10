@@ -6,6 +6,7 @@ from admin.views.chat import ChatAdmin
 from admin.views.chat_knowledge import ChatKnowledgeAdmin
 from admin.views.knowledge_item import KnowledgeItemAdmin
 from admin.views.message import MessageAdmin
+from admin.views.user import UserAdmin
 from admin.views.video import VideoAdmin
 
 
@@ -23,3 +24,4 @@ def setup_admin(
     admin.add_view(KnowledgeItemAdmin)
     admin.add_view(MessageAdmin)
     admin.add_view(VideoAdmin)
+    admin.add_view(UserAdmin)
