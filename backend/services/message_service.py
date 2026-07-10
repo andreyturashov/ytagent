@@ -1,3 +1,4 @@
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,6 +111,29 @@ class MessageService:
         messages = list(result.scalars())
 
         return list(reversed(messages))
+
+    async def list_langchain_messages(
+        self,
+        chat: Chat,
+    ) -> list[object]:
+        messages = await self.list_messages(chat)
+        converted_messages: list[object] = []
+
+        for message in messages:
+            if message.role == MessageRole.USER:
+                converted_messages.append(HumanMessage(content=message.content))
+            elif message.role == MessageRole.ASSISTANT:
+                converted_messages.append(AIMessage(content=message.content))
+            elif message.role == MessageRole.TOOL:
+                converted_messages.append(
+                    ToolMessage(content=message.content, tool_call_id=str(message.id))
+                )
+            elif message.role == MessageRole.SYSTEM:
+                converted_messages.append(SystemMessage(content=message.content))
+            else:
+                converted_messages.append(HumanMessage(content=message.content))
+
+        return converted_messages
 
     async def delete_message(
         self,

@@ -1,9 +1,12 @@
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models.chat import Chat
 from db.models.chat_knowledge import ChatKnowledge
 from db.models.knowledge_item import KnowledgeItem, KnowledgeType
+from db.models.video import Video
 
 
 class KnowledgeService:
@@ -14,7 +17,7 @@ class KnowledgeService:
 
     def __init__(
         self,
-        session: AsyncSession,
+        session: AsyncSession | Any,
     ) -> None:
         self.session = session
 
@@ -22,10 +25,15 @@ class KnowledgeService:
         self,
         *,
         knowledge_type: KnowledgeType,
+        video: Video | None = None,
     ) -> KnowledgeItem:
         item = KnowledgeItem(
             type=knowledge_type,
+            title=video.youtube_video_id if video is not None else "",
         )
+
+        if video is not None:
+            item.video = video
 
         self.session.add(item)
         await self.session.commit()

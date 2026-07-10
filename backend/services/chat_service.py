@@ -36,7 +36,7 @@ class ChatService:
 
         return chat
 
-    async def get_chat(
+    async def get_by_id(
         self,
         chat_id: int,
     ) -> Chat | None:
