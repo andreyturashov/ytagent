@@ -7,6 +7,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
+from agents.tools.knowledge_tools import search_knowledge
 from agents.tools.video_tools import get_transcript
 
 
@@ -30,6 +31,7 @@ llm = ChatOllama(
 
 tools = [
     get_transcript,
+    search_knowledge,
 ]
 
 llm_with_tools = llm.bind_tools(

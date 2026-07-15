@@ -12,6 +12,9 @@ class FakeSession:
     def add(self, obj: object) -> None:
         self.added.append(obj)
 
+    async def flush(self) -> None:
+        return None
+
     async def commit(self) -> None:
         return None
 

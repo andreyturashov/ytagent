@@ -33,7 +33,7 @@ class KnowledgeItem(Base):
         index=True,
     )
 
-    title: Mapped[str] = mapped_column(
+    title: Mapped[str | None] = mapped_column(
         String(500),
     )
 
