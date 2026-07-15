@@ -1,7 +1,8 @@
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from db.models.chat import Chat
 from db.models.chat_knowledge import ChatKnowledge
@@ -91,3 +92,25 @@ class KnowledgeService:
     ) -> None:
         await self.session.delete(knowledge_item)
         await self.session.commit()
+
+    async def search(
+        self,
+        query: str,
+    ) -> list[KnowledgeItem]:
+        stmt = (
+            select(KnowledgeItem)
+            .options(
+                selectinload(KnowledgeItem.video),
+            )
+            .join(Video, isouter=True)
+            .where(
+                or_(
+                    Video.youtube_video_id.ilike(f"%{query}%"),
+                    KnowledgeItem.type.ilike(f"%{query}%"),
+                )
+            )
+        )
+
+        result = await self.session.execute(stmt)
+
+        return list(result.scalars().unique())
