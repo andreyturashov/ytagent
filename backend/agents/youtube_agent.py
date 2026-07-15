@@ -37,6 +37,42 @@ llm_with_tools = llm.bind_tools(
 )
 
 
+def build_system_prompt(video_id: str | None) -> str:
+    """Build the system prompt that steers the model toward helpful answers."""
+
+    return f"""
+        You are a helpful YouTube assistant.
+
+        Selected video ID:
+
+        {video_id}
+
+        Your job is to answer the user's question clearly and usefully.
+
+        Important rules:
+        - Never output raw tool calls, JSON, or function-call syntax.
+        - Do not say things like "I will call the get_transcript function".
+        - Do not return intermediate steps or tool metadata.
+        - If transcript information is needed, use the tool silently.
+          Then answer the user directly.
+        - If the answer is not contained in the transcript, clearly say so.
+        - If the question can be answered without transcript information, answer directly.
+
+        Available tools:
+        - get_transcript(video_id)
+
+        Use get_transcript when:
+        - the user asks to summarize the video
+        - the user asks what was said in the video
+        - the user asks about video content
+        - the user asks for key takeaways
+        - the user asks questions requiring transcript information
+
+        After using a tool, provide a natural-language answer to the user.
+        Never expose the tool call itself.
+    """
+
+
 async def agent_node(
     state: ChatState,
 ) -> dict[str, list[AnyMessage]]:
@@ -47,34 +83,7 @@ async def agent_node(
     """
 
     video_id = state.get("video_id")
-
-    system_prompt = f"""
-        You are a helpful YouTube assistant.
-
-        Selected video ID:
-
-        {video_id}
-
-        Available tools:
-
-        - get_transcript(video_id)
-
-        Use get_transcript when:
-        - user asks to summarize the video
-        - user asks what was said in the video
-        - user asks about video content
-        - user asks for key takeaways
-        - user asks questions requiring transcript information
-
-        If the question can be answered without the transcript,
-        answer directly.
-
-        When using get_transcript:
-        - first retrieve the transcript
-        - then answer the user's question using the transcript
-        - if the answer is not contained in the transcript,
-        clearly say so
-    """
+    system_prompt = build_system_prompt(video_id)
 
     response = await llm_with_tools.ainvoke(
         [
