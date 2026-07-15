@@ -26,17 +26,35 @@ class KnowledgeService:
         self,
         *,
         knowledge_type: KnowledgeType,
-        video: Video | None = None,
+        video: Video | Any | None = None,
     ) -> KnowledgeItem:
+        if (
+            video is not None
+            and isinstance(video, Video)
+            and getattr(video, "knowledge_item", None) is not None
+        ):
+            return video.knowledge_item
+
         item = KnowledgeItem(
             type=knowledge_type,
             title=video.youtube_video_id if video is not None else "",
         )
+        self.session.add(item)
 
         if video is not None:
-            item.video = video
+            await self.session.flush()
 
-        self.session.add(item)
+            if isinstance(video, Video):
+                video.knowledge_item_id = item.id
+                self.session.add(video)
+            else:
+                self.session.add(
+                    Video(
+                        knowledge_item_id=item.id,
+                        youtube_video_id=video.youtube_video_id,
+                    )
+                )
+
         await self.session.commit()
         await self.session.refresh(item)
 
