@@ -25,7 +25,7 @@ class ChatState(TypedDict):
 
 
 llm = ChatOllama(
-    model="llama3.1",
+    model="qwen2.5:14b",
     temperature=0,
 )
 
