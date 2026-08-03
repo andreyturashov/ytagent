@@ -4,49 +4,143 @@ async function getCurrentVideoId() {
         currentWindow: true,
     });
 
-    if (!tab.url) {
+    if (!tab || !tab.url) {
         return null;
     }
 
-    const url = new URL(tab.url);
-
-    if (url.hostname !== "www.youtube.com") {
+    try {
+        const url = new URL(tab.url);
+        if (url.hostname !== "www.youtube.com" && url.hostname !== "youtube.com") {
+            return null;
+        }
+        return url.searchParams.get("v");
+    } catch {
         return null;
     }
-
-    return url.searchParams.get("v");
 }
 
-document
-    .getElementById("send")
-    .addEventListener("click", async () => {
+function updateVideoStatus(videoId) {
+    const statusBadge = document.getElementById("video-status");
+    const statusText = document.getElementById("status-text");
 
-        const message =
-            document.getElementById("message").value;
+    if (videoId) {
+        statusBadge.classList.add("active");
+        statusText.textContent = `Video: ${videoId.slice(0, 7)}...`;
+    } else {
+        statusBadge.classList.remove("active");
+        statusText.textContent = "No YT Video";
+    }
+}
 
-        const videoId =
-            await getCurrentVideoId();
+function appendMessage(sender, text, isError = false) {
+    const chatContainer = document.getElementById("chat-messages");
+    const typingIndicator = document.getElementById("typing");
 
-        const response = await fetch(
-            "http://localhost:8000/chat",
-            {
-                method: "POST",
+    const messageRow = document.createElement("div");
+    messageRow.className = `message-row ${sender.toLowerCase()} ${isError ? "error" : ""}`;
 
-                headers: {
-                    "Content-Type": "application/json",
-                },
+    const senderName = document.createElement("div");
+    senderName.className = "message-sender";
+    senderName.textContent = sender === "user" ? "You" : "YT Agent";
 
-                body: JSON.stringify({
-                    user_id: 1,
-                    chat_id: 1,
-                    video_id: videoId,
-                    message,
-                }),
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+    bubble.textContent = text;
+
+    messageRow.appendChild(senderName);
+    messageRow.appendChild(bubble);
+
+    // Insert before typing indicator
+    chatContainer.insertBefore(messageRow, typingIndicator);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function setTyping(isTyping) {
+    const typingIndicator = document.getElementById("typing");
+    const sendBtn = document.getElementById("send");
+
+    if (isTyping) {
+        typingIndicator.classList.add("visible");
+        sendBtn.disabled = true;
+    } else {
+        typingIndicator.classList.remove("visible");
+        sendBtn.disabled = false;
+    }
+
+    const chatContainer = document.getElementById("chat-messages");
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+async function handleSendMessage() {
+    const inputEl = document.getElementById("message");
+    const message = inputEl.value.trim();
+
+    if (!message) return;
+
+    // Append user message to chat feed
+    appendMessage("user", message);
+
+    // Clear input
+    inputEl.value = "";
+    inputEl.style.height = "42px";
+
+    setTyping(true);
+
+    try {
+        const videoId = await getCurrentVideoId();
+
+        const response = await fetch("http://localhost:8000/api/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
             },
-        );
+            body: JSON.stringify({
+                user_id: 1,
+                chat_id: 1,
+                video_id: videoId,
+                message,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned HTTP ${response.status}`);
+        }
 
         const json = await response.json();
+        appendMessage("assistant", json.answer || "No response received.");
+    } catch (err) {
+        console.error("Error sending message:", err);
+        appendMessage(
+            "assistant",
+            `Failed to reach server: ${err.message}. Ensure backend server is running on http://localhost:8000.`,
+            true
+        );
+    } finally {
+        setTyping(false);
+    }
+}
 
-        document.getElementById("answer").textContent =
-            json.answer;
+document.addEventListener("DOMContentLoaded", async () => {
+    // Initial video detection
+    const videoId = await getCurrentVideoId();
+    updateVideoStatus(videoId);
+
+    const messageInput = document.getElementById("message");
+    const sendBtn = document.getElementById("send");
+
+    sendBtn.addEventListener("click", handleSendMessage);
+
+    // Enter to send (Shift+Enter for newline)
+    messageInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
     });
+
+    // Auto-grow textarea height
+    messageInput.addEventListener("input", () => {
+        messageInput.style.height = "42px";
+        messageInput.style.height = `${Math.min(messageInput.scrollHeight, 100)}px`;
+    });
+});
