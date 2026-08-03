@@ -1,0 +1,18 @@
+{
+    "manifest_version": 3,
+    "name": "YT Agent",
+    "description": "Chat with YouTube videos",
+    "version": "0.1.0",
+
+    "action": {
+      "default_popup": "popup.html"
+    },
+
+    "permissions": [
+      "tabs"
+    ],
+
+    "host_permissions": [
+      "http://localhost:8000/*"
+    ]
+  }
