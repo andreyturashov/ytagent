@@ -33,7 +33,7 @@ class RouteDecision(BaseModel):
 
 
 llm = ChatOllama(
-    model="gemma4:31b",
+    model="qwen2.5:14b",
     temperature=0,
 )
 

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YT Agent</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --user-bubble: linear-gradient(135deg, #6366f1, #4f46e5);
+            --assistant-bubble: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #6366f1;
+            --accent-hover: #4338ca;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --border-color: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 380px;
+            height: 520px;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            padding: 14px 16px;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 10;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            letter-spacing: -0.2px;
+        }
+
+        .logo-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #ff0055, #ff5000);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(255, 0, 85, 0.3);
+        }
+
+        .logo-icon svg {
+            width: 14px;
+            height: 14px;
+            fill: #ffffff;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: rgba(148, 163, 184, 0.1);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .status-badge.active .status-dot {
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+        }
+
+        /* Chat Container */
+        .chat-container {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        /* Message Bubbles */
+        .message-row {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+
+        .message-row.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .message-row.assistant {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        .message-bubble {
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-break: break-word;
+            white-space: pre-wrap;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .message-row.user .message-bubble {
+            background: var(--user-bubble);
+            color: #ffffff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-row.assistant .message-bubble {
+            background: var(--assistant-bubble);
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .message-row.error .message-bubble {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .message-sender {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            padding: 0 4px;
+        }
+
+        /* Typing / Loading indicator */
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            background: var(--assistant-bubble);
+            padding: 10px 16px;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .typing-indicator.visible {
+            display: flex;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Footer Input */
+        .footer {
+            padding: 12px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        textarea {
+            width: 100%;
+            height: 42px;
+            max-height: 100px;
+            padding: 10px 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 13px;
+            resize: none;
+            outline: none;
+            line-height: 1.4;
+        }
+
+        textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            width: 42px;
+            height: 42px;
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        .send-btn:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .send-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </div>
+            <span>YT Agent</span>
+        </div>
+        <div id="video-status" class="status-badge">
+            <span class="status-dot"></span>
+            <span id="status-text">Detecting video...</span>
+        </div>
+    </div>
+
+    <!-- Chat Messages Feed -->
+    <div id="chat-messages" class="chat-container">
+        <div class="message-row assistant">
+            <div class="message-sender">YT Agent</div>
+            <div class="message-bubble">Hello! Ask me anything about the YouTube video you're watching.</div>
+        </div>
+        <div id="typing" class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+    </div>
+
+    <!-- Input Footer -->
+    <div class="footer">
+        <div class="input-wrapper">
+            <textarea id="message" placeholder="Ask a question about this video..." rows="1"></textarea>
+        </div>
+        <button id="send" class="send-btn" title="Send message">
+            <svg viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+        </button>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

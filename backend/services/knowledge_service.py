@@ -28,12 +28,13 @@ class KnowledgeService:
         knowledge_type: KnowledgeType,
         video: Video | Any | None = None,
     ) -> KnowledgeItem:
-        if (
-            video is not None
-            and isinstance(video, Video)
-            and getattr(video, "knowledge_item", None) is not None
-        ):
-            return video.knowledge_item
+        # The FK column is read instead of the `knowledge_item` relationship
+        # because AsyncSession cannot lazy-load relationships.
+        if isinstance(video, Video) and video.knowledge_item_id is not None:
+            existing_item = await self.get_knowledge_item(video.knowledge_item_id)
+
+            if existing_item is not None:
+                return existing_item
 
         item = KnowledgeItem(
             type=knowledge_type,
