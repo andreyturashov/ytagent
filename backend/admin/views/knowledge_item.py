@@ -9,5 +9,5 @@ class KnowledgeItemAdmin(ModelView, model=KnowledgeItem):
 
     column_list = [
         KnowledgeItem.id,
-        KnowledgeItem.title,
+        KnowledgeItem.knowledge_type,
     ]

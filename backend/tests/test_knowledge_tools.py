@@ -49,7 +49,7 @@ async def test_search_knowledge_with_video(
     session_local, _ = mock_session_context
 
     item = MagicMock()
-    item.type = "video"
+    item.knowledge_type = "video"
     item.video = MagicMock()
     item.video.youtube_video_id = "yt_abc"
 
@@ -73,7 +73,7 @@ async def test_search_knowledge_without_video(
     session_local, _ = mock_session_context
 
     item = MagicMock()
-    item.type = "website"
+    item.knowledge_type = "website"
     item.video = None
 
     with (

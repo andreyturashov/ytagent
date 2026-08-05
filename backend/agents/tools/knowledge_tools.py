@@ -29,7 +29,7 @@ async def search_knowledge(
         result = []
 
         for item in items:
-            line = f"- [{item.type}]"
+            line = f"- [{item.knowledge_type}]"
 
             if item.video:
                 line += f" YouTube: {item.video.youtube_video_id}"

@@ -41,7 +41,7 @@ async def test_create_knowledge_item_with_non_video_object() -> None:
         video=fake_video,
     )
 
-    assert item.title == "duck123"
+    assert item.knowledge_type == KnowledgeType.VIDEO
     assert session.add.call_count >= 2  # item + Video
     session.flush.assert_awaited_once()
     session.commit.assert_awaited_once()
@@ -50,7 +50,7 @@ async def test_create_knowledge_item_with_non_video_object() -> None:
 @pytest.mark.asyncio
 async def test_create_knowledge_item_with_real_video_existing_ki() -> None:
     """Video instance with knowledge_item_id set — early return (lines 33-37)."""
-    existing_ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="existing")
+    existing_ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = existing_ki
@@ -89,7 +89,7 @@ async def test_create_knowledge_item_with_real_video_no_existing_ki() -> None:
         video=video,
     )
 
-    assert item.title == "vid2"
+    assert item.knowledge_type == KnowledgeType.VIDEO
     session.commit.assert_awaited_once()
 
 
@@ -108,7 +108,7 @@ async def test_create_knowledge_item_real_video_sets_ki_id() -> None:
         video=video,
     )
 
-    assert item.title == "vid3"
+    assert item.knowledge_type == KnowledgeType.VIDEO
     session.flush.assert_awaited_once()
     session.commit.assert_awaited_once()
 
@@ -123,7 +123,7 @@ async def test_create_knowledge_item_no_video() -> None:
         knowledge_type=KnowledgeType.WEBSITE,
     )
 
-    assert item.title == ""
+    assert item.knowledge_type == KnowledgeType.WEBSITE
     session.flush.assert_not_awaited()  # flush only when video is present
     session.commit.assert_awaited_once()
 
@@ -135,7 +135,7 @@ async def test_create_knowledge_item_no_video() -> None:
 
 @pytest.mark.asyncio
 async def test_get_knowledge_item() -> None:
-    ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="found")
+    ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = ki
@@ -190,8 +190,8 @@ async def test_attach_to_chat() -> None:
 
 @pytest.mark.asyncio
 async def test_list_chat_knowledge() -> None:
-    ki1 = KnowledgeItem(type=KnowledgeType.VIDEO, title="a")
-    ki2 = KnowledgeItem(type=KnowledgeType.WEBSITE, title="b")
+    ki1 = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
+    ki2 = KnowledgeItem(knowledge_type=KnowledgeType.WEBSITE)
 
     mock_scalars = MagicMock()
     mock_scalars.__iter__ = MagicMock(return_value=iter([ki1, ki2]))
@@ -215,7 +215,7 @@ async def test_list_chat_knowledge() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_knowledge_item() -> None:
-    ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="to_delete")
+    ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     session = _make_session()
     service = KnowledgeService(session=session)
@@ -233,7 +233,7 @@ async def test_delete_knowledge_item() -> None:
 
 @pytest.mark.asyncio
 async def test_search() -> None:
-    ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="matched")
+    ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     mock_unique = MagicMock()
     mock_unique.__iter__ = MagicMock(return_value=iter([ki]))

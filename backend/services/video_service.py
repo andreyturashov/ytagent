@@ -20,8 +20,7 @@ class VideoService:
 
     async def create_video(self, youtube_video_id: str, transcript: str) -> Video:
         knowledge_item = KnowledgeItem(
-            type=KnowledgeType.VIDEO,
-            title=youtube_video_id,
+            knowledge_type=KnowledgeType.VIDEO,
         )
         self.session.add(knowledge_item)
         await self.session.flush()

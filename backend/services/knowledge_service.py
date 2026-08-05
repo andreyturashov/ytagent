@@ -37,8 +37,7 @@ class KnowledgeService:
                 return existing_item
 
         item = KnowledgeItem(
-            type=knowledge_type,
-            title=video.youtube_video_id if video is not None else "",
+            knowledge_type=knowledge_type,
         )
         self.session.add(item)
 
@@ -125,7 +124,7 @@ class KnowledgeService:
             .where(
                 or_(
                     Video.youtube_video_id.ilike(f"%{query}%"),
-                    KnowledgeItem.type.ilike(f"%{query}%"),
+                    KnowledgeItem.knowledge_type.ilike(f"%{query}%"),
                 )
             )
         )

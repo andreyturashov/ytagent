@@ -43,6 +43,7 @@ class Video(Base):
         onupdate=func.now(),
     )
 
-    knowledge_item: Mapped["KnowledgeItem"] = relationship(
+    knowledge_items: Mapped[list["KnowledgeItem"]] = relationship(
         back_populates="video",
+        foreign_keys="[KnowledgeItem.video_id]",
     )
