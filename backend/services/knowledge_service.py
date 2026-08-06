@@ -28,32 +28,25 @@ class KnowledgeService:
         knowledge_type: KnowledgeType,
         video: Video | Any | None = None,
     ) -> KnowledgeItem:
-        # The FK column is read instead of the `knowledge_item` relationship
-        # because AsyncSession cannot lazy-load relationships.
-        if isinstance(video, Video) and video.knowledge_item_id is not None:
-            existing_item = await self.get_knowledge_item(video.knowledge_item_id)
+        # Determine the video_id for the new knowledge item
+        video_id: int | None = None
 
-            if existing_item is not None:
-                return existing_item
+        if isinstance(video, Video) and video.id is not None:
+            video_id = video.id
+        elif video is not None and not isinstance(video, Video):
+            # Duck-typed object with youtube_video_id — create a real Video first
+            new_video = Video(
+                youtube_video_id=video.youtube_video_id,
+            )
+            self.session.add(new_video)
+            await self.session.flush()
+            video_id = new_video.id
 
         item = KnowledgeItem(
             knowledge_type=knowledge_type,
+            video_id=video_id,
         )
         self.session.add(item)
-
-        if video is not None:
-            await self.session.flush()
-
-            if isinstance(video, Video):
-                video.knowledge_item_id = item.id
-                self.session.add(video)
-            else:
-                self.session.add(
-                    Video(
-                        knowledge_item_id=item.id,
-                        youtube_video_id=video.youtube_video_id,
-                    )
-                )
 
         await self.session.commit()
         await self.session.refresh(item)

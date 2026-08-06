@@ -19,18 +19,18 @@ class VideoService:
         return result.scalar_one_or_none()
 
     async def create_video(self, youtube_video_id: str, transcript: str) -> Video:
-        knowledge_item = KnowledgeItem(
-            knowledge_type=KnowledgeType.VIDEO,
-        )
-        self.session.add(knowledge_item)
-        await self.session.flush()
-
         video = Video(
-            knowledge_item_id=knowledge_item.id,
             youtube_video_id=youtube_video_id,
             transcript=transcript,
         )
         self.session.add(video)
+        await self.session.flush()
+
+        knowledge_item = KnowledgeItem(
+            knowledge_type=KnowledgeType.VIDEO,
+            video_id=video.id,
+        )
+        self.session.add(knowledge_item)
         await self.session.commit()
         await self.session.refresh(video)
 
