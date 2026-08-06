@@ -125,6 +125,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     const videoId = await getCurrentVideoId();
     updateVideoStatus(videoId);
 
+    if (videoId) {
+        fetch("http://localhost:8000/api/videos/track", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                youtube_video_id: videoId,
+                user_id: 1,
+            }),
+        }).catch((err) => console.log("Track popup error:", err));
+    }
+
     const messageInput = document.getElementById("message");
     const sendBtn = document.getElementById("send");
 
