@@ -5,7 +5,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             if (url.hostname === "www.youtube.com" || url.hostname === "youtube.com") {
                 const videoId = url.searchParams.get("v");
                 if (videoId) {
-                    fetch("http://localhost:8000/api/videos/track", {
+                    fetch("http://localhost:8005/api/videos/track", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({

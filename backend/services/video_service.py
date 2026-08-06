@@ -67,6 +67,7 @@ class VideoService:
         title: str | None = None,
         channel_title: str | None = None,
         thumbnail_url: str | None = None,
+        user_id: int = 1,
         generate_embeddings: bool = True,
     ) -> Video:
         if not title or not channel_title or not thumbnail_url:
@@ -86,6 +87,7 @@ class VideoService:
         await self.session.flush()
 
         knowledge_item = KnowledgeItem(
+            user_id=user_id,
             knowledge_type=KnowledgeType.VIDEO,
             video_id=video.id,
             source_url=f"https://www.youtube.com/watch?v={youtube_video_id}",

@@ -16,7 +16,7 @@ app.include_router(
 
 app.include_router(
     video_router,
-    prefix="/api",
+    prefix="/api/videos",
     tags=["video"],
 )
 

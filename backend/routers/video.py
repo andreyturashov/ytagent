@@ -64,6 +64,7 @@ async def track_video(payload: TrackVideoRequest, db: DbSession) -> TrackVideoRe
             video = await video_service.create_video(
                 youtube_video_id=payload.youtube_video_id,
                 transcript=transcript,
+                user_id=payload.user_id,
             )
         else:
             # Update accessed_at timestamp on KnowledgeItem for user

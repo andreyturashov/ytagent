@@ -89,7 +89,7 @@ async function handleSendMessage() {
     try {
         const videoId = await getCurrentVideoId();
 
-        const response = await fetch("http://localhost:8000/api/chat", {
+        const response = await fetch("http://localhost:8005/api/chat", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -112,7 +112,7 @@ async function handleSendMessage() {
         console.error("Error sending message:", err);
         appendMessage(
             "assistant",
-            `Failed to reach server: ${err.message}. Ensure backend server is running on http://localhost:8000.`,
+            `Failed to reach server: ${err.message}. Ensure backend server is running on http://localhost:8005.`,
             true
         );
     } finally {
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateVideoStatus(videoId);
 
     if (videoId) {
-        fetch("http://localhost:8000/api/videos/track", {
+        fetch("http://localhost:8005/api/videos/track", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

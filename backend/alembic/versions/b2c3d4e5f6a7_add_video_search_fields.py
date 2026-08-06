@@ -76,13 +76,9 @@ def upgrade() -> None:
 
     # --- Phase 4: Drop old knowledge_item_id FK from videos ---
     # The FK direction is now reversed: KnowledgeItem.video_id -> Video
-    op.drop_constraint(
-        None,  # type: ignore[arg-type]
-        "videos",
-        type_="foreignkey",
-    )
-    op.drop_index(op.f("ix_videos_knowledge_item_id"), table_name="videos")
-    op.drop_column("videos", "knowledge_item_id")
+    op.execute("ALTER TABLE videos DROP CONSTRAINT IF EXISTS videos_knowledge_item_id_fkey")
+    op.execute("DROP INDEX IF EXISTS ix_videos_knowledge_item_id")
+    op.execute("ALTER TABLE videos DROP COLUMN IF EXISTS knowledge_item_id")
 
     # --- Phase 5: Build search indexes ---
 

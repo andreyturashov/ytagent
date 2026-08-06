@@ -26,6 +26,7 @@ class KnowledgeService:
         self,
         *,
         knowledge_type: KnowledgeType,
+        user_id: int = 1,
         video: Video | Any | None = None,
     ) -> KnowledgeItem:
         # Determine the video_id for the new knowledge item
@@ -43,6 +44,7 @@ class KnowledgeService:
             video_id = new_video.id
 
         item = KnowledgeItem(
+            user_id=user_id,
             knowledge_type=knowledge_type,
             video_id=video_id,
         )
