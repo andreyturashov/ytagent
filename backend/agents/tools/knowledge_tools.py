@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 
 from db.session import AsyncSessionLocal
 from services.knowledge_service import KnowledgeService
+from services.search_service import SearchService
 
 
 @tool
@@ -16,8 +17,6 @@ async def search_knowledge(
     - previously discussed topics
     - remembered knowledge
     """
-
-    print(f"Searching knowledge for query: {query}")
     async with AsyncSessionLocal() as session:
         service = KnowledgeService(session)
 
@@ -37,3 +36,41 @@ async def search_knowledge(
             result.append(line)
 
         return "\n".join(result)
+
+
+@tool
+async def search_watch_history(
+    query: str,
+    user_id: int = 1,
+) -> str:
+    """
+    Search the user's watched video history by date or topic (e.g. 'yesterday', 'MCP servers').
+
+    Use this tool when the user asks:
+    - What videos did I watch yesterday / recently / last week?
+    - Which video was about a specific topic?
+    - Search my watch history.
+    """
+    async with AsyncSessionLocal() as session:
+        service = SearchService(session)
+        results = await service.search(query=query, user_id=user_id)
+
+        if not results:
+            return "No matching videos found in watch history."
+
+        output = []
+        for r in results:
+            v = r.video
+            ki = r.knowledge_item
+            accessed_str = ki.accessed_at.strftime("%Y-%m-%d %H:%M")
+            card = (
+                f"- 🎥 **{v.title or 'Untitled Video'}** "
+                f"by *{v.channel_title or 'Unknown Channel'}*\n"
+                f"  - Watched: {accessed_str}\n"
+                f"  - URL: {ki.source_url or f'https://www.youtube.com/watch?v={v.youtube_video_id}'}"
+            )
+            if v.summary:
+                card += f"\n  - Summary: {v.summary[:200]}..."
+            output.append(card)
+
+        return "\n\n".join(output)

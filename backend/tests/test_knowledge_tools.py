@@ -1,10 +1,9 @@
-"""Tests for agents.tools.knowledge_tools module."""
-
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agents.tools.knowledge_tools import search_knowledge
+from agents.tools.knowledge_tools import search_knowledge, search_watch_history
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -86,3 +85,51 @@ async def test_search_knowledge_without_video(
 
     assert result == "- [website]"
     assert "YouTube" not in result
+
+
+# ── search_watch_history ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_search_watch_history_no_results(
+    mock_session_context: tuple[MagicMock, AsyncMock],
+) -> None:
+    session_local, _ = mock_session_context
+
+    with (
+        patch("agents.tools.knowledge_tools.AsyncSessionLocal", session_local),
+        patch("agents.tools.knowledge_tools.SearchService") as svc_cls,
+    ):
+        svc_cls.return_value.search = AsyncMock(return_value=[])
+
+        result = await search_watch_history.ainvoke({"query": "nothing", "user_id": 1})
+
+    assert result == "No matching videos found in watch history."
+
+
+@pytest.mark.asyncio
+async def test_search_watch_history_with_results(
+    mock_session_context: tuple[MagicMock, AsyncMock],
+) -> None:
+    session_local, _ = mock_session_context
+
+    mock_res = MagicMock()
+    mock_res.video.title = "Docker Guide"
+    mock_res.video.channel_title = "Tech Channel"
+    mock_res.video.youtube_video_id = "v_docker"
+    mock_res.video.summary = "A comprehensive tutorial on Docker containers."
+    mock_res.knowledge_item.accessed_at = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
+    mock_res.knowledge_item.source_url = "https://www.youtube.com/watch?v=v_docker"
+
+    with (
+        patch("agents.tools.knowledge_tools.AsyncSessionLocal", session_local),
+        patch("agents.tools.knowledge_tools.SearchService") as svc_cls,
+    ):
+        svc_cls.return_value.search = AsyncMock(return_value=[mock_res])
+
+        result = await search_watch_history.ainvoke({"query": "Docker", "user_id": 1})
+
+    assert "Docker Guide" in result
+    assert "Tech Channel" in result
+    assert "2026-08-06 12:00" in result
+    assert "https://www.youtube.com/watch?v=v_docker" in result
