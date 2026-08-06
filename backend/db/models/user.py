@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from db.models.chat import Chat
+    from db.models.knowledge_item import KnowledgeItem
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -33,5 +34,9 @@ class User(Base):
     )
 
     chats: Mapped[list["Chat"]] = relationship(
+        back_populates="user",
+    )
+
+    knowledge_items: Mapped[list["KnowledgeItem"]] = relationship(
         back_populates="user",
     )

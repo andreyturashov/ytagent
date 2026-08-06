@@ -34,5 +34,7 @@ def build_database_url() -> str:
 
 
 # LLM model selection used by integrations that consume a model name
-# Example value: llama3.1
 LLAMA_MODEL = os.getenv("LLAMA_MODEL", "llama3.1")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", os.getenv("LLAMA_MODEL", "qwen2.5:14b"))
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

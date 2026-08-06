@@ -29,7 +29,7 @@ def _make_session(**overrides: Any) -> MagicMock:
 
 @pytest.mark.asyncio
 async def test_create_knowledge_item_with_non_video_object() -> None:
-    """Non-Video duck-typed object — hits the else branch (lines 52-57)."""
+    """Non-Video duck-typed object — creates a Video first, then KI with video_id."""
     session = _make_session()
     service = KnowledgeService(session=session)
 
@@ -41,81 +41,35 @@ async def test_create_knowledge_item_with_non_video_object() -> None:
         video=fake_video,
     )
 
-    assert item.title == "duck123"
-    assert session.add.call_count >= 2  # item + Video
+    assert item.knowledge_type == KnowledgeType.VIDEO
+    assert session.add.call_count >= 2  # Video + KnowledgeItem
     session.flush.assert_awaited_once()
     session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_create_knowledge_item_with_real_video_existing_ki() -> None:
-    """Video instance with knowledge_item_id set — early return (lines 33-37)."""
-    existing_ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="existing")
-
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = existing_ki
-
-    session = _make_session(execute=AsyncMock(return_value=mock_result))
-    service = KnowledgeService(session=session)
-
-    video = MagicMock(spec=Video)
-    video.knowledge_item_id = 42
-    video.youtube_video_id = "vid1"
-
-    result = await service.create_knowledge_item(
-        knowledge_type=KnowledgeType.VIDEO,
-        video=video,
-    )
-
-    assert result is existing_ki
-    session.commit.assert_not_awaited()  # early return, no commit
-
-
-@pytest.mark.asyncio
-async def test_create_knowledge_item_with_real_video_no_existing_ki() -> None:
-    """Video instance with knowledge_item_id set but item not found in DB."""
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
-
-    session = _make_session(execute=AsyncMock(return_value=mock_result))
-    service = KnowledgeService(session=session)
-
-    video = MagicMock(spec=Video)
-    video.knowledge_item_id = 99
-    video.youtube_video_id = "vid2"
-
-    item = await service.create_knowledge_item(
-        knowledge_type=KnowledgeType.VIDEO,
-        video=video,
-    )
-
-    assert item.title == "vid2"
-    session.commit.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_create_knowledge_item_real_video_sets_ki_id() -> None:
-    """Video instance without knowledge_item_id — hits lines 48-50."""
+async def test_create_knowledge_item_with_real_video() -> None:
+    """Video instance with id — KI.video_id is set to the video's id."""
     session = _make_session()
     service = KnowledgeService(session=session)
 
     video = MagicMock(spec=Video)
-    video.knowledge_item_id = None
-    video.youtube_video_id = "vid3"
+    video.id = 42
+    video.youtube_video_id = "vid1"
 
     item = await service.create_knowledge_item(
         knowledge_type=KnowledgeType.VIDEO,
         video=video,
     )
 
-    assert item.title == "vid3"
-    session.flush.assert_awaited_once()
+    assert item.knowledge_type == KnowledgeType.VIDEO
+    assert item.video_id == 42
     session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_create_knowledge_item_no_video() -> None:
-    """No video at all — title defaults to empty string."""
+    """No video at all — video_id is None."""
     session = _make_session()
     service = KnowledgeService(session=session)
 
@@ -123,8 +77,9 @@ async def test_create_knowledge_item_no_video() -> None:
         knowledge_type=KnowledgeType.WEBSITE,
     )
 
-    assert item.title == ""
-    session.flush.assert_not_awaited()  # flush only when video is present
+    assert item.knowledge_type == KnowledgeType.WEBSITE
+    assert item.video_id is None
+    session.flush.assert_not_awaited()  # flush only when duck-typed video
     session.commit.assert_awaited_once()
 
 
@@ -135,7 +90,7 @@ async def test_create_knowledge_item_no_video() -> None:
 
 @pytest.mark.asyncio
 async def test_get_knowledge_item() -> None:
-    ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="found")
+    ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = ki
@@ -190,8 +145,8 @@ async def test_attach_to_chat() -> None:
 
 @pytest.mark.asyncio
 async def test_list_chat_knowledge() -> None:
-    ki1 = KnowledgeItem(type=KnowledgeType.VIDEO, title="a")
-    ki2 = KnowledgeItem(type=KnowledgeType.WEBSITE, title="b")
+    ki1 = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
+    ki2 = KnowledgeItem(knowledge_type=KnowledgeType.WEBSITE)
 
     mock_scalars = MagicMock()
     mock_scalars.__iter__ = MagicMock(return_value=iter([ki1, ki2]))
@@ -215,7 +170,7 @@ async def test_list_chat_knowledge() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_knowledge_item() -> None:
-    ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="to_delete")
+    ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     session = _make_session()
     service = KnowledgeService(session=session)
@@ -233,7 +188,7 @@ async def test_delete_knowledge_item() -> None:
 
 @pytest.mark.asyncio
 async def test_search() -> None:
-    ki = KnowledgeItem(type=KnowledgeType.VIDEO, title="matched")
+    ki = KnowledgeItem(knowledge_type=KnowledgeType.VIDEO)
 
     mock_unique = MagicMock()
     mock_unique.__iter__ = MagicMock(return_value=iter([ki]))

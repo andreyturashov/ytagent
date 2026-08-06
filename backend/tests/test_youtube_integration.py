@@ -87,3 +87,48 @@ async def test_fetch_transcript_text() -> None:
     assert result == "full text"
     mock_fetch.assert_awaited_once_with("vid456")
     mock_to_text.assert_called_once()
+
+
+# ------------------------------------------------------------------
+# fetch_metadata
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_metadata_success() -> None:
+    integration = YouTubeIntegration()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "title": "Test Video Title",
+        "author_name": "Test Channel",
+        "thumbnail_url": "https://img.youtube.com/vi/abc/hqdefault.jpg",
+    }
+
+    mock_client = AsyncMock()
+    mock_client.get.return_value = mock_response
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.__aexit__.return_value = False
+
+    with patch("integrations.youtube.httpx.AsyncClient", return_value=mock_client):
+        metadata = await integration.fetch_metadata("abc")
+
+    assert metadata.title == "Test Video Title"
+    assert metadata.channel_title == "Test Channel"
+    assert metadata.thumbnail_url == "https://img.youtube.com/vi/abc/hqdefault.jpg"
+
+
+@pytest.mark.asyncio
+async def test_fetch_metadata_error_fallback() -> None:
+    integration = YouTubeIntegration()
+    mock_client = AsyncMock()
+    mock_client.get.side_effect = Exception("Connection error")
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.__aexit__.return_value = False
+
+    with patch("integrations.youtube.httpx.AsyncClient", return_value=mock_client):
+        metadata = await integration.fetch_metadata("xyz")
+
+    assert metadata.title is None
+    assert metadata.channel_title is None
+    assert metadata.thumbnail_url == "https://i.ytimg.com/vi/xyz/hqdefault.jpg"

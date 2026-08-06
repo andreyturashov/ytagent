@@ -71,6 +71,7 @@ class ConversationService:
 
         if youtube_video_id is not None:
             await self.knowledge.create_knowledge_item(
+                user_id=getattr(user, "id", user_id),
                 knowledge_type=KnowledgeType.VIDEO,
                 video=await self.videos.get_video_by_youtube_id(youtube_video_id),
             )

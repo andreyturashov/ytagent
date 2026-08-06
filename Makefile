@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-BACKEND_PORT ?= 8000
+BACKEND_PORT ?= 8005
 
 .PHONY: backend frontend app check postgres makemigrations migrate
 
