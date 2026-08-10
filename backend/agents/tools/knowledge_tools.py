@@ -63,11 +63,13 @@ async def search_watch_history(
             v = r.video
             ki = r.knowledge_item
             accessed_str = ki.accessed_at.strftime("%Y-%m-%d %H:%M")
+            url = ki.source_url or f"https://www.youtube.com/watch?v={v.youtube_video_id}"
             card = (
                 f"- 🎥 **{v.title or 'Untitled Video'}** "
                 f"by *{v.channel_title or 'Unknown Channel'}*\n"
+                f"  - YouTube Video ID: `{v.youtube_video_id}`\n"
                 f"  - Watched: {accessed_str}\n"
-                f"  - URL: {ki.source_url or f'https://www.youtube.com/watch?v={v.youtube_video_id}'}"
+                f"  - URL: {url}"
             )
             if v.summary:
                 card += f"\n  - Summary: {v.summary[:200]}..."
