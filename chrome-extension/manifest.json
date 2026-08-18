@@ -1,22 +1,38 @@
 {
-    "manifest_version": 3,
-    "name": "YT Agent",
-    "description": "Chat with YouTube videos",
-    "version": "0.1.0",
-
-    "action": {
-      "default_popup": "popup.html"
-    },
-
-    "background": {
-      "service_worker": "background.js"
-    },
-
-    "permissions": [
-      "tabs"
-    ],
-
-    "host_permissions": [
-      "http://localhost:8005/*"
-    ]
-  }
+  "manifest_version": 3,
+  "name": "YT Agent",
+  "description": "Local-first AI assistant for YouTube videos. All transcripts and chat history stay private in your browser.",
+  "version": "0.2.0",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/watch*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "sidePanel",
+    "scripting",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*",
+    "*://*.youtube.com/*",
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "*://*.duckduckgo.com/*"
+  ]
+}
