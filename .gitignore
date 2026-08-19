@@ -1,10 +1,6 @@
-# Python
-__pycache__/
-*.pyc
-*.egg-info/
-.coverage
-.venv/
-
 # Environment files
 .env
 .env.*
+
+# OS
+.DS_Store
