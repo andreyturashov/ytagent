@@ -1,5 +1,6 @@
 /**
- * YouTube Data & Transcript Extraction Service (In-Browser)
+ * Content Extraction Service
+ * Multi-strategy content extractor supporting YouTube transcripts and generic page scraping.
  *
  * YouTube 2025+ uses new web component tags:
  *   - <transcript-segment-view-model> for each transcript line
@@ -7,23 +8,83 @@
  *   - <span class="ytAttributedStringHost ..."> for text content
  */
 
-export class YouTubeService {
+import { getPageType, extractPageId } from '../utils/page-detection.js';
+
+export class ContentExtractorService {
     /**
-     * Fetch video metadata using YouTube's official CORS-enabled oEmbed endpoint.
+     * Detect page type from URL.
+     * @param {string} url
+     * @returns {'youtube' | 'generic'}
      */
-    static async fetchMetadata(videoId) {
-        const url = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+    static getPageType(url) {
+        return getPageType(url);
+    }
+
+    /**
+     * Generate a stable page ID from a URL.
+     * @param {string} url
+     * @returns {string|null}
+     */
+    static extractPageId(url) {
+        return extractPageId(url);
+    }
+
+    /**
+     * Extract page metadata (title, source, thumbnail).
+     * Dispatches to YouTube oEmbed or generic page metadata extraction.
+     * @param {string} pageId
+     * @param {number|null} tabId
+     * @param {string} url - The full page URL
+     * @returns {Promise<{pageId: string, title: string, source: string, thumbnailUrl: string}>}
+     */
+    static async extractMetadata(pageId, tabId = null, url = '') {
+        const pageType = url ? getPageType(url) : 'generic';
+
+        if (pageType === 'youtube') {
+            return this._youtubeMetadata(pageId);
+        }
+
+        return this._genericMetadata(pageId, tabId, url);
+    }
+
+    /**
+     * Extract page content (transcript for YouTube, body text for other pages).
+     * Tries multiple strategies in order.
+     * @param {string} pageId
+     * @param {number|null} tabId
+     * @param {string} url - The full page URL
+     * @returns {Promise<string|null>}
+     */
+    static async extractContent(pageId, tabId = null, url = '') {
+        const pageType = url ? getPageType(url) : 'generic';
+
+        if (pageType === 'youtube') {
+            return this._youtubeExtractContent(pageId, tabId);
+        }
+
+        return this._genericExtractContent(tabId);
+    }
+
+    // ===================================================================
+    // YouTube-specific metadata
+    // ===================================================================
+
+    /**
+     * Fetch video metadata via YouTube's oEmbed endpoint.
+     */
+    static async _youtubeMetadata(videoId) {
+        const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
         const fallbackThumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
         try {
-            const res = await fetch(url);
+            const res = await fetch(oembedUrl);
             if (res.ok) {
                 const data = await res.json();
                 return {
-                    videoId,
+                    pageId: videoId,
                     title: data.title || `Video ${videoId}`,
-                    channelTitle: data.author_name || 'YouTube Creator',
-                    thumbnailUrl: data.thumbnail_url || fallbackThumbnail
+                    source: data.author_name || 'YouTube Creator',
+                    thumbnailUrl: data.thumbnail_url || fallbackThumbnail,
                 };
             }
         } catch (e) {
@@ -31,82 +92,85 @@ export class YouTubeService {
         }
 
         return {
-            videoId,
+            pageId: videoId,
             title: `YouTube Video (${videoId})`,
-            channelTitle: 'Unknown Channel',
-            thumbnailUrl: fallbackThumbnail
+            source: 'Unknown Channel',
+            thumbnailUrl: fallbackThumbnail,
         };
     }
 
+    // ===================================================================
+    // YouTube-specific content extraction (multi-strategy)
+    // ===================================================================
+
     /**
-     * Extracts transcript for a YouTube video directly in the browser.
+     * Extract YouTube transcript using multiple fallback strategies.
      */
-    static async fetchTranscript(videoId, tabId = null) {
-        // Strategy 1: Direct DOM scrape via executeScript (reads already-open transcript panel)
+    static async _youtubeExtractContent(videoId, tabId) {
+        // Strategy 1: Direct DOM scrape via executeScript
         if (tabId && chrome.scripting) {
             try {
-                const domScraped = await this._scrapeDomDirect(tabId);
+                const domScraped = await this._youtubeScrapeDom(tabId);
                 if (domScraped && domScraped.trim().length > 50) {
-                    console.log(`[YT Agent] Scraped ${domScraped.length} chars directly from tab DOM`);
+                    console.log(`[Content Extractor] Scraped ${domScraped.length} chars from YouTube DOM`);
                     return domScraped;
                 }
             } catch (err) {
-                console.warn('[YT Agent] Direct DOM scrape error:', err);
+                console.warn('[Content Extractor] YouTube DOM scrape error:', err);
             }
         }
 
-        // Strategy 2: Content script automation (clicks "Show transcript" and reads it)
+        // Strategy 2: Content script automation (clicks "Show transcript")
         if (tabId) {
             try {
-                const domTranscript = await this._fetchFromContentScript(tabId);
+                const domTranscript = await this._youtubeFetchFromContentScript(tabId);
                 if (domTranscript && domTranscript.trim().length > 50) {
-                    console.log(`[YT Agent] Extracted ${domTranscript.length} chars via content script`);
+                    console.log(`[Content Extractor] Extracted ${domTranscript.length} chars via content script`);
                     return domTranscript;
                 }
             } catch (e) {
-                console.warn('[YT Agent] Content script extraction error:', e);
+                console.warn('[Content Extractor] Content script extraction error:', e);
             }
         }
 
-        // Strategy 3: In-page player execution (MAIN world - reads caption tracks from movie_player)
+        // Strategy 3: In-page player execution (MAIN world)
         if (tabId && chrome.scripting) {
             try {
-                const pageTranscript = await this._extractDirectFromPage(tabId);
+                const pageTranscript = await this._youtubeExtractFromPlayer(tabId);
                 if (pageTranscript && pageTranscript.trim().length > 50) {
                     const parsed = this._parseTimedTextContent(pageTranscript);
                     if (parsed && parsed.length > 50) {
-                        console.log(`[YT Agent] Extracted transcript via in-page movie_player`);
+                        console.log('[Content Extractor] Extracted transcript via in-page movie_player');
                         return parsed;
                     }
                 }
             } catch (err) {
-                console.warn('[YT Agent] In-page player extraction failed:', err);
+                console.warn('[Content Extractor] In-page player extraction failed:', err);
             }
         }
 
         // Strategy 4: Android Innertube Client
         try {
-            const innertubeTranscript = await this._fetchViaAndroidInnertube(videoId);
+            const innertubeTranscript = await this._youtubeInnertubeApi(videoId);
             if (innertubeTranscript && innertubeTranscript.trim().length > 50) {
-                console.log(`[YT Agent] Extracted ${innertubeTranscript.length} chars via Android Innertube`);
+                console.log(`[Content Extractor] Extracted ${innertubeTranscript.length} chars via Android Innertube`);
                 return innertubeTranscript;
             }
         } catch (err) {
-            console.warn('[YT Agent] Android Innertube extraction failed:', err);
+            console.warn('[Content Extractor] Android Innertube extraction failed:', err);
         }
 
         return null;
     }
 
     /**
-     * Strategy 1: Direct DOM scrape covering both new (2025+) and legacy YouTube markup
+     * Strategy 1: Direct DOM scrape covering new (2025+) and legacy YouTube markup.
      */
-    static async _scrapeDomDirect(tabId) {
+    static async _youtubeScrapeDom(tabId) {
         const results = await chrome.scripting.executeScript({
             target: { tabId },
             func: () => {
                 // --- NEW YOUTUBE (2025+) ---
-                // <transcript-segment-view-model> contains transcript text
                 const newSegments = document.querySelectorAll('transcript-segment-view-model');
                 if (newSegments && newSegments.length > 0) {
                     const lines = [];
@@ -145,7 +209,6 @@ export class YouTubeService {
                 const panel = document.querySelector('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-transcript"]') ||
                               document.querySelector('#panels ytd-transcript-renderer');
                 if (panel) {
-                    // Try new-style segments within the panel
                     const panelSegs = panel.querySelectorAll('transcript-segment-view-model');
                     if (panelSegs && panelSegs.length > 0) {
                         const lines = [];
@@ -161,7 +224,6 @@ export class YouTubeService {
                         }
                     }
 
-                    // Try legacy segments within the panel
                     const legacyItems = panel.querySelectorAll('yt-formatted-string.segment-text, .segment-text');
                     if (legacyItems && legacyItems.length > 0) {
                         const lines = [];
@@ -196,9 +258,9 @@ export class YouTubeService {
     }
 
     /**
-     * Strategy 2: Talk to content script on active tab (auto-injects if missing)
+     * Strategy 2: Content script message to extract transcript.
      */
-    static async _fetchFromContentScript(tabId) {
+    static async _youtubeFetchFromContentScript(tabId) {
         if (!tabId) return null;
 
         // Auto-inject content.js if needed
@@ -223,9 +285,9 @@ export class YouTubeService {
     }
 
     /**
-     * Strategy 3: Execute in YouTube's MAIN world to read caption track URLs
+     * Strategy 3: Execute in YouTube's MAIN world to read caption track URLs.
      */
-    static async _extractDirectFromPage(tabId) {
+    static async _youtubeExtractFromPlayer(tabId) {
         const results = await chrome.scripting.executeScript({
             target: { tabId },
             world: 'MAIN',
@@ -265,9 +327,9 @@ export class YouTubeService {
     }
 
     /**
-     * Strategy 4: Android Innertube Client
+     * Strategy 4: Android Innertube Client API.
      */
-    static async _fetchViaAndroidInnertube(videoId) {
+    static async _youtubeInnertubeApi(videoId) {
         const apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
         const endpoint = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`;
         const payload = {
@@ -309,8 +371,145 @@ export class YouTubeService {
         return this._parseTimedTextContent(rawText);
     }
 
+    // ===================================================================
+    // Generic page content extraction
+    // ===================================================================
+
     /**
-     * Unified parser supporting XML and JSON3 caption formats
+     * Extract metadata from a generic web page using executeScript.
+     */
+    static async _genericMetadata(pageId, tabId, url) {
+        const fallback = {
+            pageId,
+            title: pageId,
+            source: '',
+            thumbnailUrl: '',
+        };
+
+        if (!tabId || !chrome.scripting) {
+            try {
+                const parsed = new URL(url);
+                fallback.source = parsed.hostname;
+            } catch (e) {}
+            return fallback;
+        }
+
+        try {
+            const results = await chrome.scripting.executeScript({
+                target: { tabId },
+                func: () => {
+                    const title = document.title ||
+                                  document.querySelector('meta[property="og:title"]')?.content ||
+                                  document.querySelector('h1')?.innerText ||
+                                  '';
+
+                    const description = document.querySelector('meta[name="description"]')?.content ||
+                                        document.querySelector('meta[property="og:description"]')?.content ||
+                                        '';
+
+                    const thumbnail = document.querySelector('meta[property="og:image"]')?.content ||
+                                      document.querySelector('link[rel="icon"]')?.href ||
+                                      '';
+
+                    const siteName = document.querySelector('meta[property="og:site_name"]')?.content ||
+                                     window.location.hostname;
+
+                    return { title, description, thumbnail, siteName };
+                }
+            });
+
+            const meta = results?.[0]?.result;
+            if (meta) {
+                return {
+                    pageId,
+                    title: meta.title || pageId,
+                    source: meta.siteName || '',
+                    thumbnailUrl: meta.thumbnail || '',
+                    description: meta.description || '',
+                };
+            }
+        } catch (err) {
+            console.warn('[Content Extractor] Generic metadata extraction failed:', err);
+        }
+
+        try {
+            const parsed = new URL(url);
+            fallback.source = parsed.hostname;
+        } catch (e) {}
+        return fallback;
+    }
+
+    /**
+     * Extract main content from a generic web page.
+     * Tries <article>, <main>, then falls back to <body> with noise stripped.
+     */
+    static async _genericExtractContent(tabId) {
+        if (!tabId || !chrome.scripting) return null;
+
+        try {
+            const results = await chrome.scripting.executeScript({
+                target: { tabId },
+                func: () => {
+                    // Helper: strip elements that are typically navigation/boilerplate
+                    function cleanNode(container) {
+                        const clone = container.cloneNode(true);
+                        const removeSelectors = [
+                            'nav', 'header', 'footer', 'aside',
+                            'script', 'style', 'noscript', 'iframe',
+                            '[role="navigation"]', '[role="banner"]',
+                            '[role="complementary"]', '[role="contentinfo"]',
+                            '.sidebar', '.nav', '.menu', '.footer', '.header',
+                            '.ad', '.advertisement', '.social-share',
+                            '#cookie-banner', '.cookie-notice',
+                        ];
+                        for (const sel of removeSelectors) {
+                            clone.querySelectorAll(sel).forEach(el => el.remove());
+                        }
+                        return clone;
+                    }
+
+                    // 1. Try <article> element
+                    const article = document.querySelector('article');
+                    if (article) {
+                        const cleaned = cleanNode(article);
+                        const text = cleaned.innerText?.trim();
+                        if (text && text.length > 100) return text;
+                    }
+
+                    // 2. Try <main> element
+                    const main = document.querySelector('main, [role="main"]');
+                    if (main) {
+                        const cleaned = cleanNode(main);
+                        const text = cleaned.innerText?.trim();
+                        if (text && text.length > 100) return text;
+                    }
+
+                    // 3. Fallback: body with noise stripped
+                    const cleaned = cleanNode(document.body);
+                    const text = cleaned.innerText?.trim();
+
+                    // Truncate to ~80K chars to avoid overwhelming the AI context
+                    if (text && text.length > 0) {
+                        return text.slice(0, 80000);
+                    }
+
+                    return null;
+                }
+            });
+
+            return results?.[0]?.result || null;
+        } catch (err) {
+            console.warn('[Content Extractor] Generic content extraction failed:', err);
+            return null;
+        }
+    }
+
+    // ===================================================================
+    // Shared parsers
+    // ===================================================================
+
+    /**
+     * Unified parser supporting XML and JSON3 caption formats.
      */
     static _parseTimedTextContent(rawContent) {
         if (!rawContent || !rawContent.trim()) return null;
@@ -363,6 +562,9 @@ export class YouTubeService {
         return null;
     }
 
+    /**
+     * Decode common HTML entities.
+     */
     static _decodeHtml(str) {
         return str
             .replace(/&amp;/g, '&')

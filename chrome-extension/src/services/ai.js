@@ -1,6 +1,7 @@
 /**
  * Direct Client-Side AI Service (Ollama, Gemini, OpenAI)
  * With Web Search Grounding.
+ * Generalized to support any page content, not just YouTube transcripts.
  */
 
 import { WebSearchService } from './websearch.js';
@@ -17,7 +18,7 @@ export class AIService {
         this.geminiKey = s.geminiKey || '';
         this.geminiModel = s.geminiModel || 'gemini-3.6-flash';
         this.enableWebSearch = s.enableWebSearch !== false;
-        this.systemPrompt = s.systemPrompt || 'You are an intelligent YouTube AI assistant.';
+        this.systemPrompt = s.systemPrompt || 'You are an intelligent AI assistant that helps users understand web page content.';
     }
 
     /**
@@ -37,7 +38,7 @@ export class AIService {
     }
 
     /**
-     * Helper to fetch locally installed models from a running Ollama instance
+     * Helper to fetch locally installed models from a running Ollama instance.
      */
     static async fetchOllamaModels(endpoint = 'http://localhost:11434') {
         const cleanUrl = endpoint.replace(/\/+$/, '');
@@ -51,8 +52,14 @@ export class AIService {
 
     /**
      * Generate response with optional streaming callback.
+     * @param {object} options
+     * @param {string} options.userPrompt - The user's message
+     * @param {Array} options.history - Prior chat messages
+     * @param {string} options.pageContent - Extracted page content (transcript, article text, etc.)
+     * @param {string} options.pageTitle - Page title
+     * @param {Function|null} options.onChunk - Streaming callback(delta, fullText)
      */
-    async generateResponse({ userPrompt, history = [], transcript = '', videoTitle = '', onChunk = null }) {
+    async generateResponse({ userPrompt, history = [], pageContent = '', pageTitle = '', onChunk = null }) {
         if (!this.isConfigured()) {
             throw new Error(`Configuration for ${this.provider.toUpperCase()} is missing. Please check settings.`);
         }
@@ -71,11 +78,11 @@ export class AIService {
             }
         }
 
-        const contextBlock = transcript
-            ? `\n\n--- VIDEO CONTEXT ---\nTitle: ${videoTitle}\nTranscript:\n${transcript.slice(0, 80000)}\n---------------------\n`
+        const contextBlock = pageContent
+            ? `\n\n--- PAGE CONTEXT ---\nTitle: ${pageTitle}\nContent:\n${pageContent.slice(0, 80000)}\n---------------------\n`
             : '';
 
-        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${webSearchBlock}\nInstructions:\n1. Prioritize answering based on the provided video transcript.\n2. If the user asks for external information or definitions not present in the video, use web search context and your knowledge to answer accurately.`;
+        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${webSearchBlock}\nInstructions:\n1. Prioritize answering based on the provided page content.\n2. If the user asks for external information or definitions not present in the page, use web search context and your knowledge to answer accurately.`;
 
         if (this.provider === 'ollama') {
             return this._callOllama({ enhancedSystemPrompt, history, userPrompt, onChunk });

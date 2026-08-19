@@ -1,6 +1,6 @@
 /**
- * Content Script for YouTube Watch Pages
- * Extracts transcripts directly from YouTube's on-page DOM and player.
+ * Content Script for Web Pages
+ * Extracts content from any page. For YouTube, extracts transcripts from the DOM and player.
  *
  * YouTube 2025+ uses new web component tags:
  *   - <transcript-segment-view-model> for each transcript line
@@ -13,21 +13,32 @@ if (!window.__ytAgentListenerAttached) {
     window.__ytAgentListenerAttached = true;
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.type === 'GET_PLAYER_STATE') {
-            const videoEl = document.querySelector('video');
-            const titleEl = document.querySelector('h1.ytd-watch-metadata yt-formatted-string') || document.querySelector('h1.title');
-            const channelEl = document.querySelector('ytd-channel-name yt-formatted-string a');
+        if (request.type === 'GET_PAGE_STATE') {
+            const isYouTube = window.location.hostname.includes('youtube.com');
 
-            sendResponse({
-                currentTime: videoEl ? videoEl.currentTime : 0,
-                duration: videoEl ? videoEl.duration : 0,
-                isPaused: videoEl ? videoEl.paused : true,
-                title: titleEl ? titleEl.innerText.trim() : document.title,
-                channel: channelEl ? channelEl.innerText.trim() : ''
-            });
+            const result = {
+                title: document.title,
+                url: window.location.href,
+                isYouTube,
+            };
+
+            if (isYouTube) {
+                const videoEl = document.querySelector('video');
+                const titleEl = document.querySelector('h1.ytd-watch-metadata yt-formatted-string') || document.querySelector('h1.title');
+                const channelEl = document.querySelector('ytd-channel-name yt-formatted-string a');
+
+                result.currentTime = videoEl ? videoEl.currentTime : 0;
+                result.duration = videoEl ? videoEl.duration : 0;
+                result.isPaused = videoEl ? videoEl.paused : true;
+                result.title = titleEl ? titleEl.innerText.trim() : document.title;
+                result.channel = channelEl ? channelEl.innerText.trim() : '';
+            }
+
+            sendResponse(result);
             return true;
         }
 
+        // Legacy support: keep EXTRACT_TRANSCRIPT for YouTube
         if (request.type === 'EXTRACT_TRANSCRIPT') {
             extractTranscript().then((transcript) => {
                 sendResponse({ transcript });
@@ -36,17 +47,80 @@ if (!window.__ytAgentListenerAttached) {
             });
             return true;
         }
+
+        // Generic page content extraction
+        if (request.type === 'EXTRACT_PAGE_CONTENT') {
+            try {
+                const content = extractPageContent();
+                sendResponse({ content });
+            } catch (err) {
+                sendResponse({ content: null, error: err.message });
+            }
+            return true;
+        }
     });
 }
 
+/**
+ * Extract cleaned text content from any web page.
+ * Tries <article>, <main>, then falls back to <body> with noise stripped.
+ */
+function extractPageContent() {
+    function cleanNode(container) {
+        const clone = container.cloneNode(true);
+        const removeSelectors = [
+            'nav', 'header', 'footer', 'aside',
+            'script', 'style', 'noscript', 'iframe',
+            '[role="navigation"]', '[role="banner"]',
+            '[role="complementary"]', '[role="contentinfo"]',
+            '.sidebar', '.nav', '.menu', '.footer', '.header',
+            '.ad', '.advertisement', '.social-share',
+            '#cookie-banner', '.cookie-notice',
+        ];
+        for (const sel of removeSelectors) {
+            clone.querySelectorAll(sel).forEach(el => el.remove());
+        }
+        return clone;
+    }
+
+    // 1. Try <article> element
+    const article = document.querySelector('article');
+    if (article) {
+        const cleaned = cleanNode(article);
+        const text = cleaned.innerText?.trim();
+        if (text && text.length > 100) return text;
+    }
+
+    // 2. Try <main> element
+    const main = document.querySelector('main, [role="main"]');
+    if (main) {
+        const cleaned = cleanNode(main);
+        const text = cleaned.innerText?.trim();
+        if (text && text.length > 100) return text;
+    }
+
+    // 3. Fallback: body with noise stripped
+    const cleaned = cleanNode(document.body);
+    const text = cleaned.innerText?.trim();
+
+    if (text && text.length > 0) {
+        return text.slice(0, 80000);
+    }
+
+    return null;
+}
+
+// ===================================================================
+// YouTube-specific transcript extraction (unchanged logic)
+// ===================================================================
+
 async function extractTranscript() {
-    // 1. Check if transcript segments already exist in the DOM (panel already open)
+    // 1. Check if transcript segments already exist in the DOM
     let text = readTranscriptFromDom();
     if (text) return text;
 
     // 2. Open the description and click "Show transcript"
     try {
-        // Expand description
         const expandBtn = document.querySelector('#expand') ||
                           document.querySelector('tp-yt-paper-button#expand') ||
                           document.querySelector('#description-inline-expander #expand') ||
@@ -56,12 +130,10 @@ async function extractTranscript() {
             await wait(400);
         }
 
-        // Find and click the transcript button
         const transcriptButton = findTranscriptButton();
         if (transcriptButton) {
             transcriptButton.click();
 
-            // Poll for up to 5 seconds for transcript segments to appear
             for (let i = 0; i < 25; i++) {
                 await wait(200);
                 text = readTranscriptFromDom();
@@ -82,17 +154,14 @@ async function extractTranscript() {
 }
 
 function findTranscriptButton() {
-    // 1. Modern YouTube: button with aria-label containing "transcript"
     const ariaBtn = document.querySelector('button[aria-label*="transcript" i]') ||
                     document.querySelector('button[aria-label*="Transcript" i]');
     if (ariaBtn) return ariaBtn;
 
-    // 2. Old-style renderer
     const rendererBtn = document.querySelector('ytd-video-description-transcript-section-renderer button') ||
                         document.querySelector('ytd-structured-description-content-renderer button[aria-label*="transcript" i]');
     if (rendererBtn) return rendererBtn;
 
-    // 3. Search by text content across all visible buttons
     const allButtons = document.querySelectorAll('button');
     for (const b of allButtons) {
         const txt = (b.innerText || b.textContent || '').trim().toLowerCase();
@@ -104,18 +173,12 @@ function findTranscriptButton() {
     return null;
 }
 
-/**
- * Read transcript text from the DOM.
- * Supports both new (2025+) and legacy YouTube transcript panel markup.
- */
 function readTranscriptFromDom() {
     // === New YouTube (2025+) ===
-    // <transcript-segment-view-model> contains a <span> with text
     const newSegments = document.querySelectorAll('transcript-segment-view-model');
     if (newSegments && newSegments.length > 0) {
         const parts = [];
         for (const seg of newSegments) {
-            // The text is in a <span role="text"> or <span class="ytAttributedStringHost ...">
             const textEl = seg.querySelector('span[role="text"]') ||
                            seg.querySelector('span.ytAttributedStringHost') ||
                            seg.querySelector('span');
@@ -127,7 +190,6 @@ function readTranscriptFromDom() {
         }
     }
 
-    // Also try the wrapper element
     const markerItems = document.querySelectorAll('macro-markers-panel-item-view-model');
     if (markerItems && markerItems.length > 0) {
         const parts = [];
@@ -159,7 +221,7 @@ function readTranscriptFromDom() {
         }
     }
 
-    // === Broadest fallback: any scrollable transcript container ===
+    // === Broadest fallback ===
     const scrollContainer = document.querySelector('.ytSectionListRendererContents[scrollable="true"]');
     if (scrollContainer) {
         const spans = scrollContainer.querySelectorAll('span[role="text"], span.ytAttributedStringHost');
