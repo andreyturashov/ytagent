@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YT Agent",
-  "description": "Local-first AI assistant for YouTube videos. All transcripts and chat history stay private in your browser.",
-  "version": "0.2.0",
+  "description": "Local-first AI assistant for web pages. Analyze YouTube transcripts, articles, docs and more. All data stays private in your browser.",
+  "version": "0.3.0",
   "action": {
     "default_popup": "popup.html"
   },
@@ -33,6 +33,7 @@
     "*://*.youtube.com/*",
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",
-    "*://*.duckduckgo.com/*"
+    "*://*.duckduckgo.com/*",
+    "<all_urls>"
   ]
 }

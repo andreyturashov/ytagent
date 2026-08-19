@@ -54,7 +54,7 @@ function setupOllamaHeaderRules() {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('YT Agent (Local-First) Extension installed.');
+    console.log('YT Agent (Local-First) Extension installed — supports any web page.');
     setupOllamaHeaderRules();
 });
 
