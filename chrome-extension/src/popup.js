@@ -221,6 +221,7 @@ function initEventDelegation() {
             return;
         }
 
+
         // Quick action: Summarize
         if (e.target.closest('#action-summary')) {
             e.preventDefault();
