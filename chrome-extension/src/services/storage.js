@@ -220,6 +220,110 @@ class LocalDB {
             tx.onerror = () => reject(tx.error);
         });
     }
+
+    // Search Operations
+
+    /**
+     * Get all page records, sorted by updated_at descending (most recent first).
+     * @returns {Promise<Array>}
+     */
+    async getAllPages() {
+        const db = await this.getDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('pages', 'readonly');
+            const store = tx.objectStore('pages');
+            const req = store.getAll();
+            req.onsuccess = () => {
+                const results = req.result || [];
+                results.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
+                resolve(results);
+            };
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    /**
+     * Search across all pages and their chat messages.
+     * Returns matching pages with context snippets from messages.
+     * @param {string} query - Search query (case-insensitive)
+     * @returns {Promise<Array<{page: object, matchedIn: string[], messageSnippets: string[]}>>}
+     */
+    async searchHistory(query) {
+        if (!query || !query.trim()) return [];
+
+        const normalizedQuery = query.trim().toLowerCase();
+        const allPages = await this.getAllPages();
+        const db = await this.getDb();
+
+        // Get all messages in one transaction
+        const allMessages = await new Promise((resolve, reject) => {
+            const tx = db.transaction('messages', 'readonly');
+            const store = tx.objectStore('messages');
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => reject(req.error);
+        });
+
+        // Group messages by page_id
+        const messagesByPage = {};
+        for (const msg of allMessages) {
+            if (!messagesByPage[msg.page_id]) {
+                messagesByPage[msg.page_id] = [];
+            }
+            messagesByPage[msg.page_id].push(msg);
+        }
+
+        const results = [];
+
+        for (const page of allPages) {
+            const matchedIn = [];
+            const messageSnippets = [];
+
+            // Check page title
+            if (page.title && page.title.toLowerCase().includes(normalizedQuery)) {
+                matchedIn.push('title');
+            }
+
+            // Check page source / channel
+            if (page.source && page.source.toLowerCase().includes(normalizedQuery)) {
+                matchedIn.push('source');
+            }
+
+            // Check page content
+            if (page.content && page.content.toLowerCase().includes(normalizedQuery)) {
+                matchedIn.push('content');
+            }
+
+            // Check chat messages for this page
+            const pageMessages = messagesByPage[page.page_id] || [];
+            for (const msg of pageMessages) {
+                if (msg.content && msg.content.toLowerCase().includes(normalizedQuery)) {
+                    // Extract a snippet around the match
+                    const idx = msg.content.toLowerCase().indexOf(normalizedQuery);
+                    const start = Math.max(0, idx - 40);
+                    const end = Math.min(msg.content.length, idx + normalizedQuery.length + 40);
+                    let snippet = msg.content.slice(start, end).trim();
+                    if (start > 0) snippet = '…' + snippet;
+                    if (end < msg.content.length) snippet = snippet + '…';
+                    messageSnippets.push(snippet);
+
+                    if (!matchedIn.includes('messages')) {
+                        matchedIn.push('messages');
+                    }
+                }
+            }
+
+            if (matchedIn.length > 0) {
+                results.push({
+                    page,
+                    matchedIn,
+                    messageSnippets: messageSnippets.slice(0, 3), // Limit to 3 snippets
+                });
+            }
+        }
+
+        return results;
+    }
 }
 
 // User Settings Storage (chrome.storage.local)

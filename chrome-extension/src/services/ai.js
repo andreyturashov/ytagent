@@ -57,9 +57,10 @@ export class AIService {
      * @param {Array} options.history - Prior chat messages
      * @param {string} options.pageContent - Extracted page content (transcript, article text, etc.)
      * @param {string} options.pageTitle - Page title
+     * @param {string} options.historyContext - Optional browsing history context for cross-page queries
      * @param {Function|null} options.onChunk - Streaming callback(delta, fullText)
      */
-    async generateResponse({ userPrompt, history = [], pageContent = '', pageTitle = '', onChunk = null }) {
+    async generateResponse({ userPrompt, history = [], pageContent = '', pageTitle = '', historyContext = '', onChunk = null }) {
         if (!this.isConfigured()) {
             throw new Error(`Configuration for ${this.provider.toUpperCase()} is missing. Please check settings.`);
         }
@@ -82,7 +83,11 @@ export class AIService {
             ? `\n\n--- PAGE CONTEXT ---\nTitle: ${pageTitle}\nContent:\n${pageContent.slice(0, 80000)}\n---------------------\n`
             : '';
 
-        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${webSearchBlock}\nInstructions:\n1. Prioritize answering based on the provided page content.\n2. If the user asks for external information or definitions not present in the page, use web search context and your knowledge to answer accurately.`;
+        const historyBlock = historyContext
+            ? `\n\n--- BROWSING HISTORY ---\nThe user has previously visited and discussed the following pages. Each entry includes the page title, source, visit date, and URL. Use this to answer questions about their browsing history, previously watched videos, read articles, etc. When the user asks for a link, provide the URL from this data.\n${historyContext}\n------------------------\n`
+            : '';
+
+        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nInstructions:\n1. Prioritize answering based on the provided page content.\n2. If the user asks about their browsing history or previously visited pages, use the BROWSING HISTORY context to answer. Always include the URL when referencing a page from history.\n3. If the user asks for a link or URL to a previously visited page, provide the exact URL from the BROWSING HISTORY data.\n4. If the user asks for external information or definitions not present in the page, use web search context and your knowledge to answer accurately.`;
 
         if (this.provider === 'ollama') {
             return this._callOllama({ enhancedSystemPrompt, history, userPrompt, onChunk });

@@ -9,6 +9,140 @@ import { localDB } from '../services/storage.js';
 let isGenerating = false;
 
 /**
+ * Patterns that suggest the user is asking about their browsing history.
+ */
+const HISTORY_PATTERNS = [
+    /\b(what|which)\s+(video|page|article|site|doc)/i,
+    /\b(watched|visited|browsed|read|seen|opened)\b/i,
+    /\b(yesterday|last\s+week|last\s+month|today|recently|earlier|before|ago)\b/i,
+    /\b(history|remember|recall|find|search|look\s+up)\b/i,
+    /\b(did\s+i|have\s+i|i\s+watched|i\s+visited|i\s+read|i\s+saw|i\s+browsed)\b/i,
+    /\b(previous|past)\s+(video|page|article|session)/i,
+    /\b(about\s+(?:ai|machine\s+learning|python|react|javascript|coding|programming|tutorial))\b/i,
+];
+
+/**
+ * Patterns that directly request a link/URL — these are always history queries.
+ */
+const LINK_PATTERNS = [
+    /\b(link|url)\s+(to|for|of)\b/i,
+    /\b(provide|give|share|send|get)\s+(a\s+|the\s+|me\s+)*(link|url)\b/i,
+    /\b(where\s+is|where\s+can\s+i\s+find)\b/i,
+];
+
+/**
+ * Check if a user message is asking about their browsing/watching history.
+ * @param {string} message
+ * @returns {boolean}
+ */
+function isHistoryQuery(message) {
+    // Link/URL requests always trigger history lookup
+    for (const pattern of LINK_PATTERNS) {
+        if (pattern.test(message)) return true;
+    }
+
+    // General history queries need 2+ pattern matches
+    let matchCount = 0;
+    for (const pattern of HISTORY_PATTERNS) {
+        if (pattern.test(message)) matchCount++;
+        if (matchCount >= 2) return true;
+    }
+    return false;
+}
+
+/**
+ * Format a timestamp into a human-readable relative date.
+ * @param {number} timestamp
+ * @returns {string}
+ */
+function formatRelativeDate(timestamp) {
+    if (!timestamp) return 'unknown date';
+    const now = Date.now();
+    const diff = now - timestamp;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (days === 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Build a browsing history context string from all stored pages.
+ * Extracts keywords from the user query to filter relevant pages.
+ * @param {string} userQuery
+ * @returns {Promise<string>}
+ */
+async function buildHistoryContext(userQuery) {
+    try {
+        const allPages = await localDB.getAllPages();
+        if (!allPages || allPages.length === 0) return '';
+
+        // Extract meaningful keywords from query (skip stop words)
+        const stopWords = new Set([
+            'what', 'which', 'did', 'i', 'do', 'the', 'a', 'an', 'is', 'was', 'were',
+            'have', 'has', 'had', 'about', 'that', 'this', 'with', 'from', 'for',
+            'and', 'or', 'but', 'not', 'my', 'me', 'can', 'you', 'tell', 'show',
+            'find', 'search', 'look', 'up', 'watched', 'visited', 'read', 'saw',
+            'browsed', 'opened', 'video', 'page', 'article', 'site', 'remember',
+            'yesterday', 'today', 'recently', 'last', 'week', 'month', 'ago',
+            'any', 'some', 'all', 'how', 'when', 'where', 'why', 'please',
+        ]);
+        const queryWords = userQuery.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter(w => w.length > 2 && !stopWords.has(w));
+
+        // Score and rank pages by relevance
+        const scored = allPages.map(page => {
+            let score = 0;
+            const titleLower = (page.title || '').toLowerCase();
+            const sourceLower = (page.source || '').toLowerCase();
+            const contentLower = (page.content || '').toLowerCase().slice(0, 5000);
+
+            for (const word of queryWords) {
+                if (titleLower.includes(word)) score += 3;
+                if (sourceLower.includes(word)) score += 2;
+                if (contentLower.includes(word)) score += 1;
+            }
+
+            // Boost recent pages
+            const ageHours = (Date.now() - (page.updated_at || 0)) / (1000 * 60 * 60);
+            if (ageHours < 24) score += 2;
+            else if (ageHours < 168) score += 1; // within a week
+
+            return { page, score };
+        });
+
+        // Sort by score descending, then by recency
+        scored.sort((a, b) => b.score - a.score || (b.page.updated_at || 0) - (a.page.updated_at || 0));
+
+        // Take top results (keyword-matched + recent)
+        const keywordMatches = scored.filter(s => s.score > 0).slice(0, 15);
+        const recentFallback = scored.slice(0, 10);
+        const topResults = keywordMatches.length > 0 ? keywordMatches : recentFallback;
+
+        // Format as context string
+        const lines = topResults.map(({ page, score }) => {
+            const date = formatRelativeDate(page.updated_at || page.created_at);
+            const type = page.page_type === 'youtube' ? 'YouTube Video' :
+                page.page_type === 'article' ? 'Article' : 'Web Page';
+            const source = page.source ? ` | By: ${page.source}` : '';
+            const url = page.source_url ? ` | URL: ${page.source_url}` : '';
+            return `- [${type}] "${page.title || 'Untitled'}"${source} | Visited: ${date}${url}`;
+        });
+
+        return lines.join('\n');
+    } catch (e) {
+        console.warn('Failed to build history context:', e);
+        return '';
+    }
+}
+
+/**
  * Check if the chat is currently generating a response.
  * @returns {boolean}
  */
@@ -168,11 +302,18 @@ export async function handleSendMessage(context, overrideText = null) {
         const history = await localDB.getMessages(context.currentPageId);
         const priorHistory = history.slice(0, -1);
 
+        // Detect history queries and build context
+        let historyContext = '';
+        if (isHistoryQuery(messageText)) {
+            historyContext = await buildHistoryContext(messageText);
+        }
+
         const responseText = await context.aiService.generateResponse({
             userPrompt: messageText,
             history: priorHistory,
             pageContent: context.currentPageData?.content || '',
             pageTitle: context.currentPageData?.title || '',
+            historyContext,
             onChunk: (_delta, fullText) => {
                 if (!assistantBubble) {
                     setGenerating(false);

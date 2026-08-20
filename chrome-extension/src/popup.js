@@ -12,6 +12,7 @@ import { showPageBanner } from './ui/page-banner.js';
 import { initSettings, toggleProviderVisibility, saveSettingsHandler, handleDetectOllamaModels } from './ui/settings.js';
 import { handleSendMessage, resetChatFeed, loadChatHistory, getIsGenerating } from './ui/chat.js';
 import { openContentOverlay, closeContentOverlay, handleResyncContent, handleSaveContent } from './ui/transcript.js';
+import { showFetchButton, hideFetchButton } from './ui/fetch-content.js';
 
 // ===================================================================
 // Shared Application State
@@ -73,6 +74,7 @@ async function detectCurrentPage() {
 
     if (!tab || !tab.url) {
         updateStatus('inactive', 'No Tab');
+        hideFetchButton();
         return;
     }
 
@@ -80,6 +82,7 @@ async function detectCurrentPage() {
         const pageId = extractPageId(tab.url);
         if (!pageId) {
             updateStatus('inactive', 'No Page');
+            hideFetchButton();
             return;
         }
 
@@ -87,17 +90,15 @@ async function detectCurrentPage() {
         const pageType = getPageType(tab.url);
         updateStatus('warning', 'Loading...');
 
-        // 1. Check local IndexedDB
+        // 1. Check local IndexedDB for cached content
         let pageRecord = await localDB.getPage(pageId);
         const hasCachedContent = pageRecord && pageRecord.content && pageRecord.content.trim().length > 50;
 
-        // 2. Fetch metadata
+        // 2. Fetch metadata only (lightweight)
         const meta = await ContentExtractorService.extractMetadata(pageId, tab.id, tab.url);
 
-        // 3. Extract content if not cached
         if (!hasCachedContent) {
-            const content = await ContentExtractorService.extractContent(pageId, tab.id, tab.url);
-
+            // Build a minimal record with metadata only — no content extraction yet
             pageRecord = {
                 page_id: pageId,
                 page_type: pageType,
@@ -105,14 +106,9 @@ async function detectCurrentPage() {
                 title: meta.title || pageRecord?.title,
                 source: meta.source || pageRecord?.source,
                 thumbnail_url: meta.thumbnailUrl || pageRecord?.thumbnail_url,
-                content: content || '',
+                content: '',
                 created_at: pageRecord?.created_at || Date.now(),
             };
-
-            // Only persist if we got real content
-            if (content && content.trim().length > 50) {
-                await localDB.savePage(pageRecord);
-            }
         } else {
             // Update metadata even if content is cached
             pageRecord.title = meta.title || pageRecord.title;
@@ -125,13 +121,17 @@ async function detectCurrentPage() {
         // Update UI banner
         showPageBanner(pageRecord);
 
-        // Update Status
-        if (!pageRecord.content || pageRecord.content.trim().length < 50) {
-            updateStatus('warning', 'No Content');
+        // Update Status & show/hide fetch button
+        if (!hasCachedContent) {
+            const isYouTube = pageType === 'youtube';
+            updateStatus('warning', isYouTube ? 'Transcript Not Loaded' : 'Content Not Loaded');
+            showFetchButton(isYouTube);
         } else if (!aiService || !aiService.isConfigured()) {
             updateStatus('warning', settings?.provider === 'ollama' ? 'Start Ollama' : 'Set API Key');
+            hideFetchButton();
         } else {
             updateStatus('active', 'Ready');
+            hideFetchButton();
         }
 
         // Load existing messages
@@ -140,6 +140,7 @@ async function detectCurrentPage() {
     } catch (err) {
         console.error('Page detection error:', err);
         updateStatus('inactive', 'Detection Error');
+        hideFetchButton();
     }
 }
 
@@ -150,6 +151,60 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
             detectCurrentPage();
         }
     });
+}
+
+// ===================================================================
+// Explicit Content Fetch
+// ===================================================================
+
+async function handleFetchContent() {
+    if (!currentPageId || !currentTab) return;
+
+    const btn = getEl('fetch-content-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="fetch-spinner"></span> Fetching…';
+    }
+
+    updateStatus('warning', 'Fetching…');
+
+    try {
+        const content = await ContentExtractorService.extractContent(
+            currentPageId,
+            currentTab.id,
+            currentTab.url || ''
+        );
+
+        if (content && content.trim().length > 50) {
+            if (!currentPageData) {
+                currentPageData = { page_id: currentPageId };
+            }
+            currentPageData.content = content;
+            await localDB.savePage(currentPageData);
+            hideFetchButton();
+
+            if (aiService && aiService.isConfigured()) {
+                updateStatus('active', 'Ready');
+            } else {
+                updateStatus('warning', settings?.provider === 'ollama' ? 'Start Ollama' : 'Set API Key');
+            }
+        } else {
+            updateStatus('warning', 'No Content Found');
+            if (btn) {
+                btn.disabled = false;
+                const pageType = getPageType(currentTab.url || '');
+                const isYouTube = pageType === 'youtube';
+                btn.innerHTML = isYouTube ? '📥 Get Transcript' : '📥 Get Page Content';
+            }
+        }
+    } catch (err) {
+        console.error('Content fetch error:', err);
+        updateStatus('warning', 'Fetch Failed');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '⚠️ Retry';
+        }
+    }
 }
 
 // ===================================================================
@@ -165,6 +220,7 @@ function initEventDelegation() {
             await handleSendMessage(getContext());
             return;
         }
+
 
         // Quick action: Summarize
         if (e.target.closest('#action-summary')) {
@@ -187,6 +243,13 @@ function initEventDelegation() {
                 await localDB.clearMessages(currentPageId);
                 resetChatFeed();
             }
+            return;
+        }
+
+        // Fetch content button (the main new action)
+        if (e.target.closest('#fetch-content-btn')) {
+            e.preventDefault();
+            await handleFetchContent();
             return;
         }
 
