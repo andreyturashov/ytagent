@@ -103,9 +103,9 @@ async function detectCurrentPage() {
                 page_id: pageId,
                 page_type: pageType,
                 source_url: tab.url,
-                title: meta.title || pageRecord?.title,
-                source: meta.source || pageRecord?.source,
-                thumbnail_url: meta.thumbnailUrl || pageRecord?.thumbnail_url,
+                title: meta.title || pageRecord?.title || tab.title || 'Untitled',
+                source: meta.source || pageRecord?.source || '',
+                thumbnail_url: meta.thumbnailUrl || pageRecord?.thumbnail_url || '',
                 content: '',
                 created_at: pageRecord?.created_at || Date.now(),
             };
@@ -114,9 +114,13 @@ async function detectCurrentPage() {
             pageRecord.title = meta.title || pageRecord.title;
             pageRecord.source = meta.source || pageRecord.source;
             pageRecord.thumbnail_url = meta.thumbnailUrl || pageRecord.thumbnail_url;
+            pageRecord.source_url = tab.url || pageRecord.source_url;
         }
 
         currentPageData = pageRecord;
+
+        // Persist page metadata, URL, and timestamp in local database
+        await localDB.savePage(pageRecord);
 
         // Update UI banner
         showPageBanner(pageRecord);

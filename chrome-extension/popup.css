@@ -277,6 +277,17 @@ body {
     border-radius: 4px;
     font-size: 12px;
 }
+.message-bubble a {
+    color: #93c5fd;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    word-break: break-all;
+    transition: color 0.15s ease;
+}
+.message-bubble a:hover {
+    color: #bfdbfe;
+}
+
 
 .message-row.user .message-bubble {
     background: var(--user-bubble);

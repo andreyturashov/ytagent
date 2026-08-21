@@ -68,12 +68,23 @@ describe('formatMarkdown', () => {
         expect(result).toContain('<br/>');
     });
 
+    it('converts markdown links to anchor tags', () => {
+        const result = formatMarkdown('Check out [YouTube](https://www.youtube.com/watch?v=123)');
+        expect(result).toContain('<a href="https://www.youtube.com/watch?v=123" target="_blank" rel="noopener noreferrer">YouTube</a>');
+    });
+
+    it('converts bare URLs to anchor tags', () => {
+        const result = formatMarkdown('Visit https://example.com for info');
+        expect(result).toContain('<a href="https://example.com" target="_blank" rel="noopener noreferrer">https://example.com</a>');
+    });
+
     it('handles complex markdown', () => {
-        const input = '**Bold** and *italic* with `code`\n- bullet';
+        const input = '**Bold** and *italic* with `code` and [Link](https://example.com)\n- bullet';
         const result = formatMarkdown(input);
         expect(result).toContain('<strong>Bold</strong>');
         expect(result).toContain('<em>italic</em>');
         expect(result).toContain('<code>code</code>');
+        expect(result).toContain('<a href="https://example.com" target="_blank" rel="noopener noreferrer">Link</a>');
         expect(result).toContain('<li>bullet</li>');
     });
 });
