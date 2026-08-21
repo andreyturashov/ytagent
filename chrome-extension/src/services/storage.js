@@ -339,7 +339,7 @@ export const SettingsService = {
                 geminiKey: '',
                 geminiModel: 'gemini-3.6-flash',
                 enableWebSearch: true,
-                systemPrompt: 'You are an intelligent AI assistant that helps users understand web page content. Answer user questions grounded in the page content provided.'
+                systemPrompt: 'You are an intelligent, concise AI assistant for web pages. Always keep responses brief, direct, and focused to avoid overwhelming the conversation.'
             }, (items) => resolve(items));
         });
     },
