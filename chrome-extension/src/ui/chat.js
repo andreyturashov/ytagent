@@ -313,6 +313,7 @@ export async function handleSendMessage(context, overrideText = null) {
             history: priorHistory,
             pageContent: context.currentPageData?.content || '',
             pageTitle: context.currentPageData?.title || '',
+            pageUrl: context.currentPageData?.source_url || context.currentTab?.url || '',
             historyContext,
             onChunk: (_delta, fullText) => {
                 if (!assistantBubble) {
