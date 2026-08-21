@@ -18,7 +18,7 @@ export class AIService {
         this.geminiKey = s.geminiKey || '';
         this.geminiModel = s.geminiModel || 'gemini-3.6-flash';
         this.enableWebSearch = s.enableWebSearch !== false;
-        this.systemPrompt = s.systemPrompt || 'You are an intelligent AI assistant that helps users understand web page content.';
+        this.systemPrompt = s.systemPrompt || 'You are an intelligent, concise AI assistant for web pages. Always keep responses brief, direct, and focused to avoid overwhelming the conversation.';
     }
 
     /**
@@ -88,7 +88,8 @@ export class AIService {
             ? `\n\n--- BROWSING HISTORY ---\nThe user has previously visited and discussed the following pages and videos. Each entry contains the title, author/source, relative visit date, and URL.\n${historyContext}\n------------------------\n`
             : '';
 
-        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nInstructions:\n1. Prioritize answering based on the provided page content.\n2. When asked for the link, URL, or source of the current video or page, provide the URL from CURRENT PAGE CONTEXT as a markdown link: [${pageTitle || 'Link'}](${pageUrl}).\n3. When asked about previously watched videos, visited pages, or articles from history, use the BROWSING HISTORY context and always provide the exact markdown link [Title](URL).\n4. Never claim that you cannot provide links or browse when URLs are provided in the context above.\n5. If the user asks for external information or definitions not present in the page, use web search context and your knowledge to answer accurately.`;
+        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nInstructions:\n1. Keep responses short, direct, and concise (typically 1-3 sentences or a few compact bullet points) so the conversation stays brief and readable.\n2. Avoid filler, conversational pleasantries, unnecessary preamble, or repetitive wrap-ups.\n3. Prioritize answering based on the provided page content.\n4. When asked for the link, URL, or source of the current video or page, provide the URL from CURRENT PAGE CONTEXT as a markdown link: [${pageTitle || 'Link'}](${pageUrl}).\n5. When asked about previously watched videos, visited pages, or articles from history, use the BROWSING HISTORY context and provide the exact markdown link [Title](URL).\n6. Never claim that you cannot provide links or browse when URLs are provided in the context above.\n7. If the user asks for external information or definitions not present in the page, use web search context and your knowledge to answer accurately and concisely.`;
+
 
 
         if (this.provider === 'ollama') {
