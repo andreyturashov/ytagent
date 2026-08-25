@@ -132,9 +132,10 @@ body {
 }
 
 .icon-btn svg {
-    width: 16px;
-    height: 16px;
-    fill: currentColor;
+    width: 17px;
+    height: 17px;
+    stroke: currentColor;
+    fill: none;
 }
 
 /* Page Info Banner */

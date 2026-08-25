@@ -23,15 +23,22 @@
                 <span id="status-text">Detecting...</span>
             </div>
             <button id="action-clear" class="icon-btn" title="Clear Chat History">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                     <line x1="10" y1="11" x2="10" y2="17"></line>
                     <line x1="14" y1="11" x2="14" y2="17"></line>
                 </svg>
             </button>
+            <button id="help-btn" class="icon-btn" title="How to Setup Gemini Nano">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </button>
             <button id="settings-btn" class="icon-btn" title="Settings">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                 </svg>
@@ -82,7 +89,10 @@
         <div class="settings-header">
             <div class="settings-title">📄 Page Content</div>
             <button id="close-content" class="icon-btn">
-                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
             </button>
         </div>
 
@@ -128,16 +138,26 @@
                 </span>
                 <span id="nano-status-badge" class="status-badge" style="font-size: 10px; padding: 2px 6px;">Checking...</span>
             </div>
-            <p id="nano-status-desc" style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">
+            <p id="nano-status-desc" style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 10px;">
                 Direct on-device AI running locally in Chrome. 100% private with no external servers or API keys required.
             </p>
-            <button id="check-nano-btn" class="action-chip" style="font-size: 11px; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                </svg>
-                <span>Re-check Model Status</span>
-            </button>
+            <div style="display: flex; gap: 8px;">
+                <button id="check-nano-btn" class="action-chip" style="font-size: 11px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 5px;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                    <span>Re-check Status</span>
+                </button>
+                <button id="open-guide-btn" class="action-chip" style="font-size: 11px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 5px; background: rgba(99, 102, 241, 0.2); border-color: var(--accent); color: var(--text-main);">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span>Setup Instructions</span>
+                </button>
+            </div>
         </div>
 
         <div class="form-group">
@@ -184,6 +204,70 @@
             </svg>
             <span><strong>100% Local & Private:</strong> Gemini Nano runs directly on your computer's hardware. Your web pages, transcripts, and conversations never leave your device.</span>
         </div>
+    </div>
+
+    <!-- Help / Setup Guide Overlay -->
+    <div id="help-overlay" class="settings-overlay">
+        <div class="settings-header">
+            <div class="settings-title" style="display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span>How to Setup Gemini Nano</span>
+            </div>
+            <button id="close-help" class="icon-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 4px;">
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+                AIst runs 100% locally on your computer using Chrome's built-in <strong>Gemini Nano AI</strong>. Follow these 4 quick steps to enable it:
+            </p>
+
+            <!-- Step 1 -->
+            <div class="setup-step" style="background: var(--surface-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">1. Enable Chrome Flags</div>
+                <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                    Type <strong>chrome://flags</strong> in your browser address bar and enable these 2 flags:
+                </div>
+                <ul style="font-size: 11px; color: var(--text-main); margin: 6px 0 0 16px; line-height: 1.5;">
+                    <li><code style="background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px;">#prompt-api-for-gemini-nano</code> &rarr; <strong>Enabled</strong></li>
+                    <li><code style="background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px;">#optimization-guide-on-device-model</code> &rarr; <strong>Enabled BypassRequirement</strong></li>
+                </ul>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="setup-step" style="background: var(--surface-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">2. Relaunch Chrome</div>
+                <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                    Click the <strong>Relaunch</strong> button at the bottom right of <code>chrome://flags</code> page.
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="setup-step" style="background: var(--surface-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">3. Download On-Device Model</div>
+                <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                    Type <strong>chrome://components</strong> in address bar, find <strong>Optimization Guide On Device Model</strong>, and click <strong>Check for Update</strong> until downloaded.
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="setup-step" style="background: var(--surface-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px;">
+                <div style="font-weight: 600; font-size: 12px; color: var(--text-main); margin-bottom: 4px;">4. Ready to Chat!</div>
+                <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                    Open AIst on any webpage or YouTube video and start analyzing instantly!
+                </div>
+            </div>
+        </div>
+
+        <button id="got-it-btn" class="primary-btn" style="margin-top: 10px;">Got It!</button>
     </div>
 
     <script type="module" src="src/popup.js"></script>
