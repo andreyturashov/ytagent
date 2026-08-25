@@ -77,32 +77,34 @@ export class WebSearchService {
         if (!query || !query.trim()) return null;
         const userQuery = query.trim();
 
-        // Pass 1: Try searching for the exact raw query first
+        const cleanTitle = (pageTitle || '').replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
+        const shortTitle = cleanTitle ? cleanTitle.split(' ').slice(0, 4).join(' ') : '';
+        const isShortOrAmbiguous = userQuery.length < 35 || /^(yes|no|what else|more|tell me|is there|are there|how about|and|so|why)\b/i.test(userQuery);
+
+        // Pass 1: If pageTitle is available and query is contextual/ambiguous, search enriched query first
+        if (shortTitle && isShortOrAmbiguous) {
+            const contextualResults = await this.fetchDuckDuckGo(`${shortTitle} ${userQuery}`);
+            if (contextualResults) return contextualResults;
+        }
+
+        // Pass 2: Try searching for the exact raw query
         const rawResults = await this.fetchDuckDuckGo(userQuery);
         if (rawResults) return rawResults;
 
-        // Pass 2: If query is a generic follow-up (e.g. "but maybe you know?", "tell me more"), extract topic from history
-        const isFollowUp = /^(but|maybe|what about|tell me|who is|do you know|and|so|why)\b/i.test(userQuery) || userQuery.length < 25;
-        if (isFollowUp && history && history.length > 0) {
+        // Pass 3: Extract topic from conversation history if follow-up
+        if (history && history.length > 0) {
             const priorUserMsgs = history.filter(m => m.role === 'user').reverse();
             for (const prevMsg of priorUserMsgs) {
                 const text = (prevMsg.content || '').trim();
                 if (text && text !== userQuery) {
                     const topicMatch = text.replace(/^(who is|what is|tell me about|where is|how is)\s+/i, '').trim();
                     if (topicMatch && topicMatch.length > 3) {
-                        const historyResults = await this.fetchDuckDuckGo(topicMatch);
+                        const historySearchTerm = shortTitle ? `${shortTitle} ${topicMatch}` : topicMatch;
+                        const historyResults = await this.fetchDuckDuckGo(historySearchTerm);
                         if (historyResults) return historyResults;
                     }
                 }
             }
-        }
-
-        // Pass 3: Try enriching with page title if applicable
-        const cleanTitle = (pageTitle || '').replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
-        if (cleanTitle && userQuery.length < 30) {
-            const shortTitle = cleanTitle.split(' ').slice(0, 4).join(' ');
-            const titleResults = await this.fetchDuckDuckGo(`${shortTitle} ${userQuery}`);
-            if (titleResults) return titleResults;
         }
 
         return null;

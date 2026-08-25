@@ -218,19 +218,89 @@ export function setGenerating(generating) {
 }
 
 /**
- * Load and render chat history for a page.
+ * Automatically generate a brief page analysis & engaging question for new pages.
+ * @param {object} context - Shared application state
+ */
+export async function generateInitialBriefing(context) {
+    if (isGenerating) return;
+    if (!context || !context.currentPageId) return;
+
+    const pageData = context.currentPageData;
+    const pageTitle = pageData?.title || 'this page';
+    const hasContent = pageData?.content && pageData.content.trim().length > 30;
+
+    // Check if we already have saved messages for this page
+    const history = await localDB.getMessages(context.currentPageId);
+    if (history && history.length > 0) return;
+
+    if (!context.aiService || !context.aiService.isConfigured()) {
+        const fallbackMsg = `Welcome to **${pageTitle}**! Ensure Chrome Gemini Nano is enabled in chrome://flags to get instant local page analysis.`;
+        appendMessage('assistant', fallbackMsg, false);
+        return;
+    }
+
+    const briefingPrompt = hasContent
+        ? `Provide a brief 2-sentence summary of "${pageTitle}". Then on a new line (separated by a blank line \\n\\n), ask 1 simple Yes/No question offering more details (e.g. "Would you like to learn more about [main topic]?").`
+        : `Provide a brief 1-sentence summary of "${pageTitle}". Then on a new line (separated by a blank line \\n\\n), ask 1 simple Yes/No question offering more details (e.g. "Would you like to learn more about [main topic]?").`;
+
+    setGenerating(true);
+    resetChatFeed();
+    const bubble = appendMessage('assistant', '');
+
+    try {
+        let responseText = '';
+        await context.aiService.generateResponse({
+            userPrompt: briefingPrompt,
+            history: [],
+            pageContent: pageData?.content || '',
+            pageTitle: pageTitle,
+            pageUrl: pageData?.source_url || '',
+            onChunk: (delta, fullText) => {
+                responseText = fullText;
+                bubble.innerHTML = formatMarkdown(fullText);
+            }
+        });
+
+        if (!responseText) {
+            responseText = `Brief analysis for **${pageTitle}**: What aspect of this page interests you most?`;
+            bubble.innerHTML = formatMarkdown(responseText);
+        }
+
+        const shouldSaveHistory = context.settings?.saveChatHistory !== false;
+        if (shouldSaveHistory) {
+            await localDB.addMessage(context.currentPageId, 'assistant', responseText);
+        }
+    } catch (err) {
+        console.warn('Initial briefing generation failed:', err);
+        const fallbackMsg = `Analysis for **${pageTitle}**: What would you like to explore about this page?`;
+        bubble.innerHTML = formatMarkdown(fallbackMsg);
+    } finally {
+        setGenerating(false);
+    }
+}
+
+/**
+ * Load and render chat history for a page. If no history exists, generates initial page briefing.
  * @param {string} pageId
  * @param {object} settings
+ * @param {object} context
  */
-export async function loadChatHistory(pageId, settings = null) {
+export async function loadChatHistory(pageId, settings = null, context = null) {
     resetChatFeed();
     if (settings && settings.saveChatHistory === false) {
+        if (context) {
+            await generateInitialBriefing(context);
+        }
         return;
     }
     const history = await localDB.getMessages(pageId);
 
-    for (const msg of history) {
-        appendMessage(msg.role, msg.content, false);
+    if (history && history.length > 0) {
+        for (const msg of history) {
+            appendMessage(msg.role, msg.content, false);
+        }
+    } else if (context) {
+        await generateInitialBriefing(context);
     }
 }
 
