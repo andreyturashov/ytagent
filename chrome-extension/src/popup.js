@@ -268,6 +268,20 @@ function initEventDelegation() {
             return;
         }
 
+        // Open Help / Setup Guide modal
+        if (e.target.closest('#help-btn') || e.target.closest('#open-guide-btn')) {
+            e.preventDefault();
+            getEl('help-overlay')?.classList.add('open');
+            return;
+        }
+
+        // Close Help / Setup Guide modal
+        if (e.target.closest('#close-help') || e.target.closest('#got-it-btn')) {
+            e.preventDefault();
+            getEl('help-overlay')?.classList.remove('open');
+            return;
+        }
+
         // Open settings
         if (e.target.closest('#settings-btn')) {
             e.preventDefault();
