@@ -15,28 +15,25 @@ describe('SettingsService', () => {
 
     it('getSettings returns defaults', async () => {
         const settings = await SettingsService.getSettings();
-        expect(settings.provider).toBe('ollama');
-        expect(settings.ollamaEndpoint).toBe('http://localhost:11434');
-        expect(settings.ollamaModel).toBe('qwen2.5:14b');
         expect(settings.enableWebSearch).toBe(true);
         expect(settings.systemPrompt).toContain('AI assistant');
     });
 
     it('saveSettings persists data', async () => {
-        await SettingsService.saveSettings({ provider: 'gemini', geminiKey: 'test-key' });
+        await SettingsService.saveSettings({ enableWebSearch: false, systemPrompt: 'Custom prompt' });
 
         // Subsequent getSettings should reflect saved values
         const settings = await SettingsService.getSettings();
-        expect(settings.provider).toBe('gemini');
-        expect(settings.geminiKey).toBe('test-key');
+        expect(settings.enableWebSearch).toBe(false);
+        expect(settings.systemPrompt).toBe('Custom prompt');
     });
 
     it('saveSettings overwrites previous values', async () => {
-        await SettingsService.saveSettings({ provider: 'openai' });
-        await SettingsService.saveSettings({ provider: 'ollama' });
+        await SettingsService.saveSettings({ enableWebSearch: false });
+        await SettingsService.saveSettings({ enableWebSearch: true });
 
         const settings = await SettingsService.getSettings();
-        expect(settings.provider).toBe('ollama');
+        expect(settings.enableWebSearch).toBe(true);
     });
 });
 

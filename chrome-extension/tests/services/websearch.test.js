@@ -63,21 +63,21 @@ describe('WebSearchService', () => {
 
     it('returns null when no relevant data in response', async () => {
         const mockData = { AbstractText: '', Answer: '', RelatedTopics: [] };
-        vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(mockFetchResponse(mockData));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockFetchResponse(mockData));
 
         const result = await WebSearchService.search('obscure query');
         expect(result).toBeNull();
     });
 
     it('returns null on fetch error', async () => {
-        vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
 
         const result = await WebSearchService.search('test');
         expect(result).toBeNull();
     });
 
     it('returns null on non-OK response', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
             mockFetchResponse('Rate limited', { ok: false, status: 429 })
         );
 

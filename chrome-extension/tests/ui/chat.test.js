@@ -13,11 +13,11 @@ describe('Chat UI', () => {
         document.body.innerHTML = `
             <div id="chat-messages">
                 <div class="message-row assistant">
-                    <div class="message-sender">YT Agent</div>
+                    <div class="message-sender">AIst</div>
                     <div class="message-bubble">Welcome message</div>
                 </div>
                 <div id="typing" class="message-row assistant typing-row" style="display: none;">
-                    <div class="message-sender">YT Agent</div>
+                    <div class="message-sender">AIst</div>
                     <div class="typing-indicator">
                         <div class="typing-dot"></div>
                     </div>
