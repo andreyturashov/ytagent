@@ -1,6 +1,6 @@
 /**
  * Settings UI Component
- * Handles settings overlay: loading, displaying, saving, and provider switching.
+ * Handles settings overlay: Gemini Nano status check, system prompt, and web search toggle.
  */
 
 import { getEl } from '../utils/dom.js';
@@ -8,56 +8,89 @@ import { SettingsService } from '../services/storage.js';
 import { AIService } from '../services/ai.js';
 
 /**
- * Load user settings and populate the settings UI.
+ * Load user settings and check Gemini Nano availability.
  * Returns { settings, aiService } for the caller to store.
  * @returns {Promise<{ settings: object, aiService: AIService }>}
  */
 export async function initSettings() {
-    let settings = await SettingsService.getSettings();
-    let aiService = new AIService(settings);
-
-    if (settings.ollamaModel === 'llama3.2' || !settings.ollamaModel) {
-        settings.ollamaModel = 'qwen2.5:14b';
-        await SettingsService.saveSettings(settings);
-        aiService = new AIService(settings);
-    }
+    const settings = await SettingsService.getSettings();
+    const aiService = new AIService(settings);
 
     // Populate Settings UI
-    const providerSelect = getEl('provider-select');
-    const ollamaEndpointInput = getEl('ollama-endpoint');
-    const ollamaModelInput = getEl('ollama-model');
-    const openaiKeyInput = getEl('openai-key');
-    const openaiModelSelect = getEl('openai-model');
-    const geminiKeyInput = getEl('gemini-key');
-    const geminiModelSelect = getEl('gemini-model');
+    const systemPromptInput = getEl('system-prompt-input');
     const webSearchToggle = getEl('web-search-toggle');
+    const saveHistoryToggle = getEl('save-history-toggle');
 
-    if (providerSelect) providerSelect.value = settings.provider || 'ollama';
-    if (ollamaEndpointInput) ollamaEndpointInput.value = settings.ollamaEndpoint || 'http://localhost:11434';
-    if (ollamaModelInput) ollamaModelInput.value = settings.ollamaModel || 'qwen2.5:14b';
-    if (openaiKeyInput) openaiKeyInput.value = settings.openaiKey || '';
-    if (openaiModelSelect) openaiModelSelect.value = settings.openaiModel || 'gpt-4o-mini';
-    if (geminiKeyInput) geminiKeyInput.value = settings.geminiKey || '';
-    if (geminiModelSelect) geminiModelSelect.value = settings.geminiModel || 'gemini-3.6-flash';
+    if (systemPromptInput) systemPromptInput.value = settings.systemPrompt || '';
     if (webSearchToggle) webSearchToggle.checked = settings.enableWebSearch !== false;
+    if (saveHistoryToggle) saveHistoryToggle.checked = settings.saveChatHistory !== false;
 
-    toggleProviderVisibility(settings.provider || 'ollama');
+    // Check Gemini Nano status in background
+    checkGeminiNanoStatus();
 
     return { settings, aiService };
 }
 
 /**
- * Show/hide provider-specific settings sections.
- * @param {string} provider - 'ollama' | 'gemini' | 'openai'
+ * Check and update Gemini Nano status UI badge and description.
  */
-export function toggleProviderVisibility(provider) {
-    const ollamaSettings = getEl('ollama-settings');
-    const geminiSettings = getEl('gemini-settings');
-    const openaiSettings = getEl('openai-settings');
+export async function checkGeminiNanoStatus(btn = null) {
+    const badge = getEl('nano-status-badge');
+    const desc = getEl('nano-status-desc');
+    let originalBtnText = '';
 
-    if (ollamaSettings) ollamaSettings.style.display = provider === 'ollama' ? 'block' : 'none';
-    if (geminiSettings) geminiSettings.style.display = provider === 'gemini' ? 'block' : 'none';
-    if (openaiSettings) openaiSettings.style.display = provider === 'openai' ? 'block' : 'none';
+    if (btn) {
+        originalBtnText = btn.innerHTML;
+        btn.textContent = 'Checking...';
+        btn.disabled = true;
+    }
+
+    if (badge) {
+        badge.textContent = 'Checking...';
+        badge.style.color = 'var(--text-muted)';
+    }
+
+    try {
+        const status = await AIService.checkAvailability();
+
+        if (badge) {
+            if (status.available === 'readily') {
+                badge.textContent = '🟢 Ready';
+                badge.style.color = 'var(--success)';
+            } else if (status.available === 'after-download') {
+                badge.textContent = '🟡 Downloading';
+                badge.style.color = 'var(--warning)';
+            } else {
+                badge.textContent = '🔴 Disabled';
+                badge.style.color = 'var(--danger)';
+            }
+        }
+
+        if (desc) {
+            if (status.available === 'readily') {
+                desc.textContent = 'Gemini Nano is active and ready for ultra-fast, private on-device analysis.';
+            } else if (status.available === 'after-download') {
+                desc.textContent = 'Model is downloading. Check chrome://components -> "Optimization Guide On Device Model".';
+            } else {
+                desc.textContent = 'To enable Gemini Nano, turn on #prompt-api-for-gemini-nano in chrome://flags and relaunch Chrome.';
+            }
+        }
+    } catch (err) {
+        if (badge) {
+            badge.textContent = '⚠️ Error';
+            badge.style.color = 'var(--danger)';
+        }
+        if (desc) {
+            desc.textContent = `Status check error: ${err.message}`;
+        }
+    } finally {
+        if (btn) {
+            setTimeout(() => {
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
+            }, 1000);
+        }
+    }
 }
 
 /**
@@ -66,24 +99,14 @@ export function toggleProviderVisibility(provider) {
  * @returns {Promise<{ settings: object, aiService: AIService }>}
  */
 export async function saveSettingsHandler(currentPageId) {
-    const providerSelect = getEl('provider-select');
-    const ollamaEndpointInput = getEl('ollama-endpoint');
-    const ollamaModelInput = getEl('ollama-model');
-    const openaiKeyInput = getEl('openai-key');
-    const openaiModelSelect = getEl('openai-model');
-    const geminiKeyInput = getEl('gemini-key');
-    const geminiModelSelect = getEl('gemini-model');
+    const systemPromptInput = getEl('system-prompt-input');
     const webSearchToggle = getEl('web-search-toggle');
+    const saveHistoryToggle = getEl('save-history-toggle');
 
     const updated = {
-        provider: providerSelect?.value || 'ollama',
-        ollamaEndpoint: ollamaEndpointInput?.value.trim() || 'http://localhost:11434',
-        ollamaModel: ollamaModelInput?.value.trim() || 'qwen2.5:14b',
-        openaiKey: openaiKeyInput?.value.trim() || '',
-        openaiModel: openaiModelSelect?.value || 'gpt-4o-mini',
-        geminiKey: geminiKeyInput?.value.trim() || '',
-        geminiModel: geminiModelSelect?.value || 'gemini-3.6-flash',
-        enableWebSearch: Boolean(webSearchToggle ? webSearchToggle.checked : true)
+        systemPrompt: systemPromptInput?.value?.trim() || 'You are a helpful, direct AI assistant. Answer user questions naturally as a plain conversation. Provide short, highly useful answers, code snippets, and key information immediately without any meta-phrases like "According to the transcript", "The video says", or "Based on the article".',
+        enableWebSearch: Boolean(webSearchToggle ? webSearchToggle.checked : true),
+        saveChatHistory: Boolean(saveHistoryToggle ? saveHistoryToggle.checked : true)
     };
 
     await SettingsService.saveSettings(updated);
@@ -92,49 +115,9 @@ export async function saveSettingsHandler(currentPageId) {
 
     // Update status badge
     const { updateStatus } = await import('./status.js');
-    if (!aiService.isConfigured()) {
-        updateStatus('warning', updated.provider === 'ollama' ? 'Start Ollama' : 'Set API Key');
-    } else if (currentPageId) {
+    if (currentPageId) {
         updateStatus('active', 'Ready');
     }
 
     return { settings: updated, aiService };
-}
-
-/**
- * Handle auto-detection of Ollama models.
- * @param {HTMLElement} btn - The detect button element
- */
-export async function handleDetectOllamaModels(btn) {
-    const endpointInput = getEl('ollama-endpoint');
-    const endpoint = (endpointInput?.value || 'http://localhost:11434').trim();
-    const originalText = btn.textContent;
-    btn.textContent = '⏳ Checking...';
-    btn.disabled = true;
-
-    try {
-        const models = await AIService.fetchOllamaModels(endpoint);
-        const dataList = getEl('ollama-models-list');
-        const modelInput = getEl('ollama-model');
-
-        if (models.length > 0) {
-            if (dataList) {
-                dataList.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
-            }
-            if (modelInput && (!modelInput.value || !models.includes(modelInput.value))) {
-                modelInput.value = models[0];
-            }
-            btn.textContent = `✅ ${models.length} model(s) found`;
-        } else {
-            btn.textContent = '⚠️ No models found (pull one via ollama pull)';
-        }
-    } catch (err) {
-        console.warn('Ollama detect error:', err);
-        btn.textContent = '❌ Ollama offline';
-    } finally {
-        setTimeout(() => {
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }, 3000);
-    }
 }

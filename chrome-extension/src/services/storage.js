@@ -3,7 +3,7 @@
  * Generalized from YouTube-only to support any page type.
  */
 
-const DB_NAME = 'YTAgentDB';
+const DB_NAME = 'AIstDB';
 const DB_VERSION = 2;
 
 class LocalDB {
@@ -221,6 +221,21 @@ class LocalDB {
         });
     }
 
+    /**
+     * Clear all messages across all pages.
+     * @returns {Promise<boolean>}
+     */
+    async clearAllMessages() {
+        const db = await this.getDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('messages', 'readwrite');
+            const store = tx.objectStore('messages');
+            const req = store.clear();
+            req.onsuccess = () => resolve(true);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
     // Search Operations
 
     /**
@@ -331,15 +346,9 @@ export const SettingsService = {
     async getSettings() {
         return new Promise((resolve) => {
             chrome.storage.local.get({
-                provider: 'ollama', // 'ollama' | 'gemini' | 'openai'
-                ollamaEndpoint: 'http://localhost:11434',
-                ollamaModel: 'qwen2.5:14b',
-                openaiKey: '',
-                openaiModel: 'gpt-4o-mini',
-                geminiKey: '',
-                geminiModel: 'gemini-3.6-flash',
                 enableWebSearch: true,
-                systemPrompt: 'You are an intelligent, concise AI assistant for web pages. Always keep responses brief, direct, and focused to avoid overwhelming the conversation.'
+                saveChatHistory: true,
+                systemPrompt: 'You are a helpful, direct AI assistant. Answer user questions naturally as a plain conversation. Provide short, highly useful answers, code snippets, and key information immediately without any meta-phrases like "According to the transcript", "The video says", or "Based on the article".'
             }, (items) => resolve(items));
         });
     },

@@ -167,7 +167,7 @@ export function appendMessage(sender, text, isError = false) {
 
     const senderName = document.createElement('div');
     senderName.className = 'message-sender';
-    senderName.textContent = sender === 'user' ? 'You' : 'YT Agent';
+    senderName.textContent = sender === 'user' ? 'You' : 'AIst';
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
@@ -220,9 +220,13 @@ export function setGenerating(generating) {
 /**
  * Load and render chat history for a page.
  * @param {string} pageId
+ * @param {object} settings
  */
-export async function loadChatHistory(pageId) {
+export async function loadChatHistory(pageId, settings = null) {
     resetChatFeed();
+    if (settings && settings.saveChatHistory === false) {
+        return;
+    }
     const history = await localDB.getMessages(pageId);
 
     for (const msg of history) {
@@ -259,17 +263,19 @@ export async function handleSendMessage(context, overrideText = null) {
     }
 
     if (!context.aiService || !context.aiService.isConfigured()) {
-        const msg = context.settings?.provider === 'ollama'
-            ? 'Please ensure Ollama is running at ' + (context.settings?.ollamaEndpoint || 'http://localhost:11434') + ' and a model is chosen in settings (⚙️ icon).'
-            : `Please enter your ${context.settings?.provider ? context.settings.provider.toUpperCase() : 'AI'} API key in settings (⚙️ icon at the top).`;
+        const msg = 'Please ensure Chrome Built-in AI (Gemini Nano) is enabled in chrome://flags and ready in your browser.';
         appendMessage('assistant', msg, true);
         getEl('settings-overlay')?.classList.add('open');
         return;
     }
 
+    const shouldSaveHistory = context.settings?.saveChatHistory !== false;
+
     // Append and save user message
     appendMessage('user', messageText);
-    await localDB.addMessage(context.currentPageId, 'user', messageText);
+    if (shouldSaveHistory) {
+        await localDB.addMessage(context.currentPageId, 'user', messageText);
+    }
 
     if (!overrideText && messageInput) {
         messageInput.value = '';
@@ -280,13 +286,19 @@ export async function handleSendMessage(context, overrideText = null) {
     let assistantBubble = null;
 
     try {
+        let activeTab = context.currentTab;
+        if (!activeTab || !activeTab.id) {
+            const { getActiveTab } = await import('../utils/page-detection.js');
+            activeTab = await getActiveTab();
+        }
+
         // Ensure content is loaded
         if ((!context.currentPageData?.content || context.currentPageData.content.trim().length === 0) && context.currentPageId) {
             const { ContentExtractorService } = await import('../services/content-extractor.js');
             const freshContent = await ContentExtractorService.extractContent(
                 context.currentPageId,
-                context.currentTab?.id,
-                context.currentTab?.url || ''
+                activeTab?.id,
+                activeTab?.url || ''
             );
             if (freshContent) {
                 if (!context.currentPageData) {
@@ -299,8 +311,8 @@ export async function handleSendMessage(context, overrideText = null) {
             }
         }
 
-        const history = await localDB.getMessages(context.currentPageId);
-        const priorHistory = history.slice(0, -1);
+        const history = shouldSaveHistory ? await localDB.getMessages(context.currentPageId) : [];
+        const priorHistory = history.length > 0 ? history.slice(0, -1) : [];
 
         // Detect history queries and build context
         let historyContext = '';
@@ -334,7 +346,9 @@ export async function handleSendMessage(context, overrideText = null) {
             assistantBubble.innerHTML = formatMarkdown(responseText);
         }
 
-        await localDB.addMessage(context.currentPageId, 'assistant', responseText);
+        if (shouldSaveHistory) {
+            await localDB.addMessage(context.currentPageId, 'assistant', responseText);
+        }
 
     } catch (err) {
         console.error('AI Generation Error:', err);

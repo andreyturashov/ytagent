@@ -170,15 +170,38 @@ export class ContentExtractorService {
         const results = await chrome.scripting.executeScript({
             target: { tabId },
             func: () => {
-                // --- NEW YOUTUBE (2025+) ---
+                function extractTextFromSeg(seg) {
+                    if (!seg) return '';
+                    const selectors = [
+                        '.transcript-segment-text',
+                        'span[role="text"]',
+                        'span.ytAttributedStringHost',
+                        'span.yt-core-attributed-string',
+                        'yt-formatted-string.segment-text',
+                        '.segment-text',
+                        'div.ytAttributedStringHost',
+                        'div.yt-core-attributed-string'
+                    ];
+                    for (const sel of selectors) {
+                        const el = seg.querySelector(sel);
+                        if (el) {
+                            const txt = (el.innerText || el.textContent || '').trim();
+                            if (txt && !/^\d+:\d+(?::\d+)?$/.test(txt)) {
+                                return txt;
+                            }
+                        }
+                    }
+                    // Fallback: strip leading timestamp (e.g. "0:00 You might have noticed...")
+                    const raw = (seg.innerText || seg.textContent || '').trim();
+                    return raw.replace(/^\d+:\d+(?::\d+)?\s*/, '').trim();
+                }
+
+                // 1. Check <transcript-segment-view-model>
                 const newSegments = document.querySelectorAll('transcript-segment-view-model');
                 if (newSegments && newSegments.length > 0) {
                     const lines = [];
                     for (const seg of newSegments) {
-                        const textEl = seg.querySelector('span[role="text"]') ||
-                                       seg.querySelector('span.ytAttributedStringHost') ||
-                                       seg.querySelector('span');
-                        const txt = textEl ? (textEl.innerText || textEl.textContent || '').trim() : '';
+                        const txt = extractTextFromSeg(seg);
                         if (txt) lines.push(txt);
                     }
                     if (lines.length > 0) {
@@ -186,50 +209,30 @@ export class ContentExtractorService {
                     }
                 }
 
-                // Also try via wrapper elements
+                // 2. Check wrapper <macro-markers-panel-item-view-model>
                 const macroItems = document.querySelectorAll('macro-markers-panel-item-view-model');
                 if (macroItems && macroItems.length > 0) {
                     const lines = [];
                     for (const item of macroItems) {
-                        const seg = item.querySelector('transcript-segment-view-model');
-                        if (seg) {
-                            const textEl = seg.querySelector('span[role="text"]') ||
-                                           seg.querySelector('span.ytAttributedStringHost') ||
-                                           seg.querySelector('span');
-                            const txt = textEl ? (textEl.innerText || textEl.textContent || '').trim() : '';
-                            if (txt) lines.push(txt);
-                        }
+                        const txt = extractTextFromSeg(item);
+                        if (txt) lines.push(txt);
                     }
                     if (lines.length > 0) {
                         return lines.join(' ').replace(/\s+/g, ' ');
                     }
                 }
 
-                // --- ENGAGEMENT PANEL (any version) ---
+                // 3. Check Engagement Panel
                 const panel = document.querySelector('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-transcript"]') ||
-                              document.querySelector('#panels ytd-transcript-renderer');
+                              document.querySelector('#panels ytd-transcript-renderer') ||
+                              document.querySelector('ytd-transcript-search-panel-renderer');
                 if (panel) {
-                    const panelSegs = panel.querySelectorAll('transcript-segment-view-model');
+                    const panelSegs = panel.querySelectorAll('transcript-segment-view-model, ytd-transcript-segment-renderer, [role="button"]');
                     if (panelSegs && panelSegs.length > 0) {
                         const lines = [];
                         for (const seg of panelSegs) {
-                            const textEl = seg.querySelector('span[role="text"]') ||
-                                           seg.querySelector('span.ytAttributedStringHost') ||
-                                           seg.querySelector('span');
-                            const txt = textEl ? (textEl.innerText || textEl.textContent || '').trim() : '';
+                            const txt = extractTextFromSeg(seg);
                             if (txt) lines.push(txt);
-                        }
-                        if (lines.length > 0) {
-                            return lines.join(' ').replace(/\s+/g, ' ');
-                        }
-                    }
-
-                    const legacyItems = panel.querySelectorAll('yt-formatted-string.segment-text, .segment-text');
-                    if (legacyItems && legacyItems.length > 0) {
-                        const lines = [];
-                        for (const el of legacyItems) {
-                            const t = (el.innerText || el.textContent || '').trim();
-                            if (t) lines.push(t);
                         }
                         if (lines.length > 0) {
                             return lines.join(' ').replace(/\s+/g, ' ');
@@ -237,14 +240,14 @@ export class ContentExtractorService {
                     }
                 }
 
-                // --- LEGACY YOUTUBE ---
-                const oldSegments = document.querySelectorAll('ytd-transcript-segment-renderer .segment-text');
+                // 4. Check Legacy YouTube
+                const oldSegments = document.querySelectorAll('ytd-transcript-segment-renderer');
                 if (oldSegments && oldSegments.length > 0) {
                     const lines = [];
-                    oldSegments.forEach(el => {
-                        const t = (el.innerText || el.textContent || '').trim();
-                        if (t) lines.push(t);
-                    });
+                    for (const seg of oldSegments) {
+                        const txt = extractTextFromSeg(seg);
+                        if (txt) lines.push(txt);
+                    }
                     if (lines.length > 0) {
                         return lines.join(' ').replace(/\s+/g, ' ');
                     }

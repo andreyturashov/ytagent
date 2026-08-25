@@ -9,8 +9,8 @@
  */
 
 // Avoid duplicate listener registration if re-injected
-if (!window.__ytAgentListenerAttached) {
-    window.__ytAgentListenerAttached = true;
+if (!window.__aistListenerAttached) {
+    window.__aistListenerAttached = true;
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.type === 'GET_PAGE_STATE') {
@@ -141,7 +141,7 @@ async function extractTranscript() {
             }
         }
     } catch (e) {
-        console.warn('[YT Agent] DOM automation failed:', e);
+        console.warn('[AIst] DOM automation failed:', e);
     }
 
     // 3. Fallback: Try reading caption tracks from the player object
@@ -155,14 +155,16 @@ async function extractTranscript() {
 
 function findTranscriptButton() {
     const ariaBtn = document.querySelector('button[aria-label*="transcript" i]') ||
-                    document.querySelector('button[aria-label*="Transcript" i]');
+                    document.querySelector('button[aria-label*="Transcript" i]') ||
+                    document.querySelector('button.yt-spec-button-shape-next[aria-label*="Transcript" i]');
     if (ariaBtn) return ariaBtn;
 
     const rendererBtn = document.querySelector('ytd-video-description-transcript-section-renderer button') ||
-                        document.querySelector('ytd-structured-description-content-renderer button[aria-label*="transcript" i]');
+                        document.querySelector('ytd-structured-description-content-renderer button[aria-label*="transcript" i]') ||
+                        document.querySelector('ytd-structured-description-content-renderer button');
     if (rendererBtn) return rendererBtn;
 
-    const allButtons = document.querySelectorAll('button');
+    const allButtons = document.querySelectorAll('button, tp-yt-paper-button, yt-button-shape');
     for (const b of allButtons) {
         const txt = (b.innerText || b.textContent || '').trim().toLowerCase();
         if (txt === 'show transcript' || txt === 'transcript') {
@@ -173,16 +175,38 @@ function findTranscriptButton() {
     return null;
 }
 
+function extractTextFromSeg(seg) {
+    if (!seg) return '';
+    const selectors = [
+        '.transcript-segment-text',
+        'span[role="text"]',
+        'span.ytAttributedStringHost',
+        'span.yt-core-attributed-string',
+        'yt-formatted-string.segment-text',
+        '.segment-text',
+        'div.ytAttributedStringHost',
+        'div.yt-core-attributed-string'
+    ];
+    for (const sel of selectors) {
+        const el = seg.querySelector(sel);
+        if (el) {
+            const txt = (el.innerText || el.textContent || '').trim();
+            if (txt && !/^\d+:\d+(?::\d+)?$/.test(txt)) {
+                return txt;
+            }
+        }
+    }
+    const raw = (seg.innerText || seg.textContent || '').trim();
+    return raw.replace(/^\d+:\d+(?::\d+)?\s*/, '').trim();
+}
+
 function readTranscriptFromDom() {
     // === New YouTube (2025+) ===
     const newSegments = document.querySelectorAll('transcript-segment-view-model');
     if (newSegments && newSegments.length > 0) {
         const parts = [];
         for (const seg of newSegments) {
-            const textEl = seg.querySelector('span[role="text"]') ||
-                           seg.querySelector('span.ytAttributedStringHost') ||
-                           seg.querySelector('span');
-            const txt = textEl ? (textEl.innerText || textEl.textContent || '').trim() : '';
+            const txt = extractTextFromSeg(seg);
             if (txt) parts.push(txt);
         }
         if (parts.length > 0) {
@@ -194,26 +218,38 @@ function readTranscriptFromDom() {
     if (markerItems && markerItems.length > 0) {
         const parts = [];
         for (const item of markerItems) {
-            const seg = item.querySelector('transcript-segment-view-model');
-            if (seg) {
-                const textEl = seg.querySelector('span[role="text"]') ||
-                               seg.querySelector('span.ytAttributedStringHost') ||
-                               seg.querySelector('span');
-                const txt = textEl ? (textEl.innerText || textEl.textContent || '').trim() : '';
-                if (txt) parts.push(txt);
-            }
+            const txt = extractTextFromSeg(item);
+            if (txt) parts.push(txt);
         }
         if (parts.length > 0) {
             return parts.join(' ').replace(/\s+/g, ' ');
         }
     }
 
+    // === Engagement Panel ===
+    const panel = document.querySelector('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-transcript"]') ||
+                  document.querySelector('#panels ytd-transcript-renderer') ||
+                  document.querySelector('ytd-transcript-search-panel-renderer');
+    if (panel) {
+        const panelSegs = panel.querySelectorAll('transcript-segment-view-model, ytd-transcript-segment-renderer, [role="button"]');
+        if (panelSegs && panelSegs.length > 0) {
+            const parts = [];
+            for (const seg of panelSegs) {
+                const txt = extractTextFromSeg(seg);
+                if (txt) parts.push(txt);
+            }
+            if (parts.length > 0) {
+                return parts.join(' ').replace(/\s+/g, ' ');
+            }
+        }
+    }
+
     // === Legacy YouTube ===
-    const legacySegments = document.querySelectorAll('ytd-transcript-segment-renderer .segment-text');
+    const legacySegments = document.querySelectorAll('ytd-transcript-segment-renderer');
     if (legacySegments && legacySegments.length > 0) {
         const parts = [];
         legacySegments.forEach(el => {
-            const t = (el.innerText || el.textContent || '').trim();
+            const t = extractTextFromSeg(el);
             if (t) parts.push(t);
         });
         if (parts.length > 0) {
@@ -224,12 +260,12 @@ function readTranscriptFromDom() {
     // === Broadest fallback ===
     const scrollContainer = document.querySelector('.ytSectionListRendererContents[scrollable="true"]');
     if (scrollContainer) {
-        const spans = scrollContainer.querySelectorAll('span[role="text"], span.ytAttributedStringHost');
+        const spans = scrollContainer.querySelectorAll('span[role="text"], span.ytAttributedStringHost, span.yt-core-attributed-string');
         if (spans && spans.length > 0) {
             const parts = [];
             for (const s of spans) {
                 const txt = (s.innerText || s.textContent || '').trim();
-                if (txt && txt.length > 1 && !txt.toLowerCase().includes('search transcript')) {
+                if (txt && txt.length > 1 && !txt.toLowerCase().includes('search transcript') && !/^\d+:\d+(?::\d+)?$/.test(txt)) {
                     parts.push(txt);
                 }
             }

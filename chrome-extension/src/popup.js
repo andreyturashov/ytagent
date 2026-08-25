@@ -1,5 +1,5 @@
 /**
- * YT Agent Main Popup / Side Panel Controller
+ * AIst Main Popup / Side Panel Controller
  * Thin orchestrator that wires up all modules and manages shared state.
  */
 
@@ -9,7 +9,7 @@ import { getActiveTab, extractPageId, getPageType } from './utils/page-detection
 import { getEl } from './utils/dom.js';
 import { updateStatus } from './ui/status.js';
 import { showPageBanner } from './ui/page-banner.js';
-import { initSettings, toggleProviderVisibility, saveSettingsHandler, handleDetectOllamaModels } from './ui/settings.js';
+import { initSettings, saveSettingsHandler, checkGeminiNanoStatus } from './ui/settings.js';
 import { handleSendMessage, resetChatFeed, loadChatHistory, getIsGenerating } from './ui/chat.js';
 import { openContentOverlay, closeContentOverlay, handleResyncContent, handleSaveContent } from './ui/transcript.js';
 import { showFetchButton, hideFetchButton } from './ui/fetch-content.js';
@@ -128,18 +128,16 @@ async function detectCurrentPage() {
         // Update Status & show/hide fetch button
         if (!hasCachedContent) {
             const isYouTube = pageType === 'youtube';
-            updateStatus('warning', isYouTube ? 'Transcript Not Loaded' : 'Content Not Loaded');
+            updateStatus('warning', isYouTube ? 'Loading Transcript…' : 'Loading Content…');
             showFetchButton(isYouTube);
-        } else if (!aiService || !aiService.isConfigured()) {
-            updateStatus('warning', settings?.provider === 'ollama' ? 'Start Ollama' : 'Set API Key');
-            hideFetchButton();
+            handleFetchContent();
         } else {
             updateStatus('active', 'Ready');
             hideFetchButton();
         }
 
         // Load existing messages
-        await loadChatHistory(pageId);
+        await loadChatHistory(pageId, settings);
 
     } catch (err) {
         console.error('Page detection error:', err);
@@ -186,12 +184,7 @@ async function handleFetchContent() {
             currentPageData.content = content;
             await localDB.savePage(currentPageData);
             hideFetchButton();
-
-            if (aiService && aiService.isConfigured()) {
-                updateStatus('active', 'Ready');
-            } else {
-                updateStatus('warning', settings?.provider === 'ollama' ? 'Start Ollama' : 'Set API Key');
-            }
+            updateStatus('active', 'Ready');
         } else {
             updateStatus('warning', 'No Content Found');
             if (btn) {
@@ -226,27 +219,16 @@ function initEventDelegation() {
         }
 
 
-        // Quick action: Summarize
-        if (e.target.closest('#action-summary')) {
-            e.preventDefault();
-            await handleSendMessage(getContext(), 'Please provide a concise, structured summary of this page with key sections and bullet points.');
-            return;
-        }
-
-        // Quick action: Key Takeaways
-        if (e.target.closest('#action-takeaways')) {
-            e.preventDefault();
-            await handleSendMessage(getContext(), 'What are the top 3-5 actionable takeaways or main lessons from this page?');
-            return;
-        }
-
-        // Quick action: Clear chat
+        // Clear chat history
         if (e.target.closest('#action-clear')) {
             e.preventDefault();
+            if (typeof localDB.clearAllMessages === 'function') {
+                await localDB.clearAllMessages();
+            }
             if (currentPageId) {
                 await localDB.clearMessages(currentPageId);
-                resetChatFeed();
             }
+            resetChatFeed();
             return;
         }
 
@@ -290,6 +272,7 @@ function initEventDelegation() {
         if (e.target.closest('#settings-btn')) {
             e.preventDefault();
             getEl('settings-overlay')?.classList.add('open');
+            checkGeminiNanoStatus();
             return;
         }
 
@@ -300,11 +283,11 @@ function initEventDelegation() {
             return;
         }
 
-        // Auto-detect Ollama models
-        if (e.target.closest('#detect-ollama-models-btn')) {
+        // Check Gemini Nano status button
+        if (e.target.closest('#check-nano-btn')) {
             e.preventDefault();
-            const btn = e.target.closest('#detect-ollama-models-btn');
-            await handleDetectOllamaModels(btn);
+            const btn = e.target.closest('#check-nano-btn');
+            await checkGeminiNanoStatus(btn);
             return;
         }
 
@@ -318,14 +301,7 @@ function initEventDelegation() {
         }
     });
 
-    // 2. Change events (Provider dropdown)
-    document.addEventListener('change', (e) => {
-        if (e.target && e.target.id === 'provider-select') {
-            toggleProviderVisibility(e.target.value);
-        }
-    });
-
-    // 3. Textarea Enter key & auto-grow
+    // 2. Textarea Enter key & auto-grow
     document.addEventListener('keydown', (e) => {
         if (e.target && e.target.id === 'message') {
             if (e.key === 'Enter' && !e.shiftKey) {
