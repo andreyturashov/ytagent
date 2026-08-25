@@ -2,7 +2,7 @@
  * Tests for src/ui/chat.js
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { appendMessage, resetChatFeed, setGenerating, getIsGenerating } from '../../src/ui/chat.js';
 import { resetChromeMocks } from '../setup.js';
 
@@ -108,6 +108,34 @@ describe('Chat UI', () => {
             setGenerating(false);
             const typing = document.getElementById('typing');
             expect(typing.classList.contains('visible')).toBe(false);
+        });
+    });
+
+    describe('generateInitialBriefing', () => {
+        it('generates an automated briefing and question for new pages', async () => {
+            const { generateInitialBriefing } = await import('../../src/ui/chat.js');
+            const { localDB } = await import('../../src/services/storage.js');
+
+            localDB.getMessages = vi.fn().mockResolvedValue([]);
+            localDB.addMessage = vi.fn().mockResolvedValue(true);
+
+            const mockAiService = {
+                isConfigured: () => true,
+                generateResponse: async ({ onChunk }) => {
+                    if (onChunk) onChunk('Analysis summary. What do you think?', 'Analysis summary. What do you think?');
+                    return 'Analysis summary. What do you think?';
+                }
+            };
+            const mockContext = {
+                currentPageId: 'page_123',
+                currentPageData: { title: 'Test Article', content: 'Sample article text' },
+                aiService: mockAiService,
+                settings: { saveChatHistory: true }
+            };
+
+            await generateInitialBriefing(mockContext);
+            const messages = document.querySelectorAll('.message-row.assistant');
+            expect(messages.length).toBeGreaterThan(0);
         });
     });
 });

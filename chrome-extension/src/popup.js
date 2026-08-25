@@ -10,7 +10,7 @@ import { getEl } from './utils/dom.js';
 import { updateStatus } from './ui/status.js';
 import { showPageBanner } from './ui/page-banner.js';
 import { initSettings, saveSettingsHandler, checkGeminiNanoStatus } from './ui/settings.js';
-import { handleSendMessage, resetChatFeed, loadChatHistory, getIsGenerating } from './ui/chat.js';
+import { handleSendMessage, resetChatFeed, loadChatHistory, generateInitialBriefing, getIsGenerating } from './ui/chat.js';
 import { openContentOverlay, closeContentOverlay, handleResyncContent, handleSaveContent } from './ui/transcript.js';
 import { showFetchButton, hideFetchButton } from './ui/fetch-content.js';
 
@@ -136,8 +136,8 @@ async function detectCurrentPage() {
             hideFetchButton();
         }
 
-        // Load existing messages
-        await loadChatHistory(pageId, settings);
+        // Load existing messages or generate initial page briefing
+        await loadChatHistory(pageId, settings, getContext());
 
     } catch (err) {
         console.error('Page detection error:', err);
@@ -185,6 +185,9 @@ async function handleFetchContent() {
             await localDB.savePage(currentPageData);
             hideFetchButton();
             updateStatus('active', 'Ready');
+
+            // Trigger initial brief analysis for new page content
+            await generateInitialBriefing(getContext());
         } else {
             updateStatus('warning', 'No Content Found');
             if (btn) {
@@ -229,6 +232,7 @@ function initEventDelegation() {
                 await localDB.clearMessages(currentPageId);
             }
             resetChatFeed();
+            await generateInitialBriefing(getContext());
             return;
         }
 
