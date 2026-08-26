@@ -178,6 +178,25 @@ class LocalDB {
     }
 
     /**
+     * Get all messages across all pages, sorted by creation time.
+     * @returns {Promise<Array>}
+     */
+    async getAllMessages() {
+        const db = await this.getDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('messages', 'readonly');
+            const store = tx.objectStore('messages');
+            const req = store.getAll();
+            req.onsuccess = () => {
+                const results = req.result || [];
+                results.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+                resolve(results);
+            };
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    /**
      * Add a new message for a page.
      * @param {string} pageId
      * @param {string} role - 'user' or 'assistant'

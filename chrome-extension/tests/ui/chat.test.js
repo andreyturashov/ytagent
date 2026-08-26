@@ -138,4 +138,26 @@ describe('Chat UI', () => {
             expect(messages.length).toBeGreaterThan(0);
         });
     });
+
+    describe('loadChatHistory', () => {
+        it('loads and renders whole chat history across pages', async () => {
+            const { loadChatHistory } = await import('../../src/ui/chat.js');
+            const { localDB } = await import('../../src/services/storage.js');
+
+            localDB.getAllMessages = vi.fn().mockResolvedValue([
+                { id: 1, role: 'user', content: 'What is Page 1?' },
+                { id: 2, role: 'assistant', content: 'Page 1 is about AI.' },
+            ]);
+            localDB.getMessages = vi.fn().mockResolvedValue([
+                { id: 1, role: 'user', content: 'What is Page 1?' }
+            ]);
+
+            await loadChatHistory('page_2', { saveChatHistory: true }, null);
+
+            const messages = document.querySelectorAll('.message-row:not(#typing)');
+            expect(messages.length).toBe(2);
+            expect(messages[0].textContent).toContain('What is Page 1?');
+            expect(messages[1].textContent).toContain('Page 1 is about AI.');
+        });
+    });
 });

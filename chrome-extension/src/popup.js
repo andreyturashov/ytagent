@@ -226,9 +226,7 @@ function initEventDelegation() {
         // Clear chat history
         if (e.target.closest('#action-clear')) {
             e.preventDefault();
-            if (currentPageId) {
-                await localDB.clearMessages(currentPageId);
-            }
+            await localDB.clearAllMessages();
             resetChatFeed();
             await generateInitialBriefing(getContext());
             return;

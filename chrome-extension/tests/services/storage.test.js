@@ -54,6 +54,10 @@ describe('LocalDB', () => {
         expect(typeof localDB.addMessage).toBe('function');
     });
 
+    it('has getAllMessages method', () => {
+        expect(typeof localDB.getAllMessages).toBe('function');
+    });
+
     it('has clearMessages method', () => {
         expect(typeof localDB.clearMessages).toBe('function');
     });

@@ -298,7 +298,8 @@ export async function generateInitialBriefing(context) {
 }
 
 /**
- * Load and render chat history for a page. If no history exists, generates initial page briefing.
+ * Load and render chat history. Shows the whole conversation history across pages,
+ * and generates an initial page briefing if one hasn't been created yet.
  * @param {string} pageId
  * @param {object} settings
  * @param {object} context
@@ -311,13 +312,17 @@ export async function loadChatHistory(pageId, settings = null, context = null) {
         }
         return;
     }
-    const history = await localDB.getMessages(pageId);
+    const allHistory = await localDB.getAllMessages();
 
-    if (history && history.length > 0) {
-        for (const msg of history) {
+    if (allHistory && allHistory.length > 0) {
+        for (const msg of allHistory) {
             appendMessage(msg.role, msg.content, false);
         }
-    } else if (context) {
+    }
+
+    // Generate initial briefing for this page if not yet created
+    const pageHistory = await localDB.getMessages(pageId);
+    if ((!pageHistory || pageHistory.length === 0) && context) {
         await generateInitialBriefing(context);
     }
 }
@@ -399,7 +404,7 @@ export async function handleSendMessage(context, overrideText = null) {
             }
         }
 
-        const history = shouldSaveHistory ? await localDB.getMessages(context.currentPageId) : [];
+        const history = shouldSaveHistory ? await localDB.getAllMessages() : [];
         const priorHistory = history.length > 0 ? history.slice(0, -1) : [];
 
         // Detect history queries and build context
