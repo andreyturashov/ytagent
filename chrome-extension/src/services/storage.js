@@ -3,6 +3,8 @@
  * Generalized from YouTube-only to support any page type.
  */
 
+import { DEFAULT_SYSTEM_PROMPT } from '../constants.js';
+
 const DB_NAME = 'AIstDB';
 const DB_VERSION = 2;
 
@@ -348,7 +350,7 @@ export const SettingsService = {
             chrome.storage.local.get({
                 enableWebSearch: true,
                 saveChatHistory: true,
-                systemPrompt: 'You are a helpful, direct AI assistant. Answer user questions naturally as a plain conversation. Provide short, highly useful answers, code snippets, and key information immediately without any meta-phrases like "According to the transcript", "The video says", or "Based on the article".'
+                systemPrompt: DEFAULT_SYSTEM_PROMPT,
             }, (items) => resolve(items));
         });
     },

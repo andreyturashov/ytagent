@@ -187,12 +187,12 @@ export function appendMessage(sender, text, isError = false) {
 }
 
 /**
- * Reset the chat feed to its initial state (keeps the welcome message).
+ * Reset the chat feed to its initial state (keeps the typing indicator).
  */
 export function resetChatFeed() {
     const container = getEl('chat-messages');
     if (container) {
-        container.querySelectorAll('.message-row:not(:first-child)').forEach(el => el.remove());
+        container.querySelectorAll('.message-row:not(#typing)').forEach(el => el.remove());
     }
 }
 
@@ -240,12 +240,12 @@ export async function generateInitialBriefing(context) {
     }
 
     const briefingPrompt = hasContent
-        ? `Provide a brief 2-sentence summary of "${pageTitle}". Then on a new line (separated by a blank line \\n\\n), ask 1 simple Yes/No question offering more details (e.g. "Would you like to learn more about [main topic]?").`
-        : `Provide a brief 1-sentence summary of "${pageTitle}". Then on a new line (separated by a blank line \\n\\n), ask 1 simple Yes/No question offering more details (e.g. "Would you like to learn more about [main topic]?").`;
+        ? `Provide a brief 2-sentence summary of "${pageTitle}" written in the primary language of the page content. Then on a new paragraph, ask 1 simple Yes/No follow-up question offering more details. The entire response and question must be in that same single language without mixing languages.`
+        : `Provide a brief 1-sentence summary of "${pageTitle}" written in the primary language of the page content. Then on a new paragraph, ask 1 simple Yes/No follow-up question offering more details. The entire response and question must be in that same single language without mixing languages.`;
 
-    setGenerating(true);
     resetChatFeed();
-    const bubble = appendMessage('assistant', '');
+    setGenerating(true);
+    let bubble = null;
 
     try {
         let responseText = '';
@@ -257,12 +257,25 @@ export async function generateInitialBriefing(context) {
             pageUrl: pageData?.source_url || '',
             onChunk: (delta, fullText) => {
                 responseText = fullText;
-                bubble.innerHTML = formatMarkdown(fullText);
+                if (!bubble) {
+                    setGenerating(false);
+                    bubble = appendMessage('assistant', fullText);
+                } else {
+                    bubble.innerHTML = formatMarkdown(fullText);
+                }
+                const container = getEl('chat-messages');
+                if (container) container.scrollTop = container.scrollHeight;
             }
         });
 
         if (!responseText) {
             responseText = `Brief analysis for **${pageTitle}**: What aspect of this page interests you most?`;
+        }
+
+        if (!bubble) {
+            setGenerating(false);
+            bubble = appendMessage('assistant', responseText);
+        } else {
             bubble.innerHTML = formatMarkdown(responseText);
         }
 
@@ -272,8 +285,13 @@ export async function generateInitialBriefing(context) {
         }
     } catch (err) {
         console.warn('Initial briefing generation failed:', err);
+        setGenerating(false);
         const fallbackMsg = `Analysis for **${pageTitle}**: What would you like to explore about this page?`;
-        bubble.innerHTML = formatMarkdown(fallbackMsg);
+        if (!bubble) {
+            bubble = appendMessage('assistant', fallbackMsg);
+        } else {
+            bubble.innerHTML = formatMarkdown(fallbackMsg);
+        }
     } finally {
         setGenerating(false);
     }
@@ -422,7 +440,6 @@ export async function handleSendMessage(context, overrideText = null) {
 
     } catch (err) {
         console.error('AI Generation Error:', err);
-        setGenerating(false);
         if (!assistantBubble) {
             appendMessage('assistant', `⚠️ **Error:** ${err.message}`, true);
         } else {

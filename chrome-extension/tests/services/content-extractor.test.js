@@ -7,25 +7,6 @@ import { ContentExtractorService } from '../../src/services/content-extractor.js
 import { resetChromeMocks, mockFetchResponse } from '../setup.js';
 
 describe('ContentExtractorService', () => {
-    describe('getPageType', () => {
-        it('returns "youtube" for YouTube watch URLs', () => {
-            expect(ContentExtractorService.getPageType('https://www.youtube.com/watch?v=abc')).toBe('youtube');
-        });
-
-        it('returns "generic" for non-YouTube URLs', () => {
-            expect(ContentExtractorService.getPageType('https://example.com')).toBe('generic');
-        });
-    });
-
-    describe('extractPageId', () => {
-        it('returns video ID for YouTube', () => {
-            expect(ContentExtractorService.extractPageId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-        });
-
-        it('returns normalized URL for generic pages', () => {
-            expect(ContentExtractorService.extractPageId('https://example.com/article')).toBe('https://example.com/article');
-        });
-    });
 
     describe('extractMetadata', () => {
         beforeEach(() => {

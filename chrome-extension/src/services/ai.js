@@ -5,16 +5,26 @@
  */
 
 import { WebSearchService } from './websearch.js';
+import { extractStreamDelta } from '../utils/streaming.js';
+import {
+    CONTEXT_MAX_CHARS,
+    MAX_HISTORY_MESSAGES,
+    STREAM_PORT_NAME,
+    DEFAULT_SYSTEM_PROMPT,
+} from '../constants.js';
 
 export class AIService {
     constructor(settings = {}) {
         const s = settings || {};
         this.enableWebSearch = s.enableWebSearch !== false;
-        this.systemPrompt = s.systemPrompt || 'You are a helpful, direct AI assistant. Answer user questions naturally in a plain conversation with short, direct, highly useful answers, factual info, and code snippets immediately. NEVER issue disclaimers like "The provided text does not contain...", "The text does not mention...", "I cannot fulfill based solely on the transcript...", or "According to the transcript...". If the user asks for code samples, facts, explanations, or details not present in the page context, IMMEDIATELY fulfill their request using your general knowledge and web search. ALWAYS place the final Yes/No question on its own separate paragraph line (separated by \\n\\n) at the very end of your response.';
+        this.systemPrompt = s.systemPrompt || 'You are a helpful, direct AI assistant. Answer user questions naturally in a plain conversation with short, direct, highly useful answers, factual info, and code snippets immediately. NEVER issue disclaimers like "The provided text does not contain...", "The text does not mention...", "I cannot fulfill based solely on the transcript...", or "According to the transcript...". If the user asks for code samples, facts, explanations, or details not present in the page context, IMMEDIATELY fulfill their request using your general knowledge and web search. ALWAYS place the final Yes/No question on its own separate paragraph line at the very end of your response.';
     }
 
     /**
      * Resolve the browser's LanguageModel factory in the current execution context.
+     *
+     * @sync-with background.js — getLanguageModelApi()
+     * Both copies discover the same API; keep lookup order in sync.
      */
     static getLanguageModelApi() {
         if (typeof LanguageModel !== 'undefined') return LanguageModel;
@@ -91,7 +101,7 @@ export class AIService {
      * Smartly trim long text to fit inside Gemini Nano's context window (~4k-8k tokens).
      * Keeps the opening context and the conclusion/latest content.
      */
-    static budgetContext(content, maxChars = 12000) {
+    static budgetContext(content, maxChars = CONTEXT_MAX_CHARS) {
         if (!content || content.length <= maxChars) {
             return content || '';
         }
@@ -118,7 +128,7 @@ export class AIService {
             }
         }
 
-        const trimmedContent = AIService.budgetContext(pageContent, 12000);
+        const trimmedContent = AIService.budgetContext(pageContent, CONTEXT_MAX_CHARS);
         const contextBlock = (trimmedContent || pageTitle || pageUrl)
             ? `\n\n--- CURRENT PAGE CONTEXT ---\nTitle: ${pageTitle || 'Untitled'}\nURL: ${pageUrl || 'N/A'}\n${trimmedContent ? `Content:\n${trimmedContent}` : ''}\n-----------------------------\n`
             : '';
@@ -127,12 +137,12 @@ export class AIService {
             ? `\n\n--- BROWSING HISTORY ---\n${historyContext}\n------------------------\n`
             : '';
 
-        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nCRITICAL KNOWLEDGE & ANSWER INSTRUCTIONS:\n1. NEVER REFUSE OR DISCLAIM: STRICTLY FORBIDDEN PHRASES: Never write "The provided text does not contain...", "The text doesn't mention...", "I cannot fulfill your request based solely on the transcript...", "According to the transcript...", or any meta-disclaimers.\n2. FULFILL REQUESTS IMMEDIATELY: Whenever the user asks for code samples, examples, explanations, facts, history, or details, IMMEDIATELY write the requested code samples and answers using your general knowledge and web search results!\n3. STRICT TOPIC ALIGNMENT: Always stay aligned with the current page topic and conversation context.\n4. STRICT YES/NO OFFER QUESTIONS ONLY: ALWAYS conclude your response with 1 simple follow-up offer that requires only a simple "Yes" or "No" reply (e.g. "Would you like to learn more about [topic]?", "Should I explain this further?").\n5. PARAGRAPH SEPARATION: ALWAYS place the final Yes/No question on its own separate line (separated by a blank line \\n\\n) at the very end of your response, so it is visually separated from the main info content.\n6. When asked for links, provide markdown links: [Title](URL).`;
+        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nCRITICAL KNOWLEDGE & ANSWER INSTRUCTIONS:\n1. NEVER REFUSE OR DISCLAIM: STRICTLY FORBIDDEN PHRASES: Never write "The provided text does not contain...", "The text doesn't mention...", "I cannot fulfill your request based solely on the transcript...", "According to the transcript...", or any meta-disclaimers.\n2. FULFILL REQUESTS IMMEDIATELY: Whenever the user asks for code samples, examples, explanations, facts, history, or details, IMMEDIATELY write the requested code samples and answers using your general knowledge and web search results!\n3. STRICT TOPIC ALIGNMENT: Always stay aligned with the current page topic and conversation context.\n4. STRICT YES/NO OFFER QUESTIONS: ALWAYS conclude your response with 1 simple follow-up offer that requires only a simple "Yes" or "No" reply. Write this entire question in the exact same language as the rest of your response.\n5. PARAGRAPH SEPARATION: ALWAYS place the final Yes/No question on its own separate paragraph line at the very end of your response, separated by an empty line from the main text.\n6. When asked for links, provide markdown links: [Title](URL).\n7. STRICT LANGUAGE CONSISTENCY & MATCHING:\n- ALWAYS write the ENTIRE response (including all paragraphs, explanations, and the closing follow-up question) in the SAME single language as the user's LAST message (or the page's language if generating an initial page summary).\n- NEVER combine or mix multiple languages in a single sentence or question. NEVER use English question boilerplate (like "Would you like to learn more about...") with non-English text. Translate the entire closing question into the target language completely (e.g. in Russian: "Хотите узнать больше о [тема]?", in Spanish: "¿Deseas saber más sobre [tema]?", etc.).\n8. STRICT RESOLUTION OF PROPOSED QUESTIONS (CRITICAL):\n- If the user responds affirmatively (e.g., "yes", "yep", "sure", "interesting", "tell me more", "да", "давай", "конечно", "расскажи") to the question or topic you proposed in your previous message:\n- DO NOT give a generic overview or re-introduce the general subject from scratch.\n- IMMEDIATELY and STRICTLY answer and elaborate on the EXACT specific topic or question proposed in your previous message (e.g., if you proposed "Would you like to know more about the upcoming season 17 of Expedition Unknown?", immediately provide specific details, release dates, and information about Season 17).`;
 
         // Build final conversation prompt with system instruction & context prepended
         let promptBody = '';
         if (history && history.length > 0) {
-            const recentHistory = history.slice(-6);
+            const recentHistory = history.slice(-MAX_HISTORY_MESSAGES);
             for (const msg of recentHistory) {
                 const role = msg.role === 'user' ? 'User' : 'Assistant';
                 promptBody += `${role}: ${msg.content}\n`;
@@ -169,28 +179,10 @@ export class AIService {
                     let fullText = '';
 
                     for await (const chunk of stream) {
-                        if (typeof chunk === 'string') {
-                            if (chunk.startsWith(fullText)) {
-                                const delta = chunk.slice(fullText.length);
-                                fullText = chunk;
-                                if (onChunk && delta) onChunk(delta, fullText);
-                            } else {
-                                let commonPrefixLen = 0;
-                                const minLen = Math.min(chunk.length, fullText.length);
-                                while (commonPrefixLen < minLen && chunk[commonPrefixLen] === fullText[commonPrefixLen]) {
-                                    commonPrefixLen++;
-                                }
-
-                                if (commonPrefixLen > 0 && commonPrefixLen >= fullText.length * 0.6) {
-                                    const delta = chunk.slice(commonPrefixLen);
-                                    fullText = chunk;
-                                    if (onChunk && delta) onChunk(delta, fullText);
-                                } else {
-                                    const delta = chunk;
-                                    fullText += delta;
-                                    if (onChunk && delta) onChunk(delta, fullText);
-                                }
-                            }
+                        const result = extractStreamDelta(chunk, fullText);
+                        if (result.delta) {
+                            fullText = result.fullText;
+                            if (onChunk) onChunk(result.delta, fullText);
                         }
                     }
                     return fullText;
@@ -210,7 +202,7 @@ export class AIService {
         if (typeof chrome !== 'undefined' && chrome.runtime?.connect) {
             return new Promise((resolve, reject) => {
                 try {
-                    const port = chrome.runtime.connect({ name: 'gemini-nano-stream' });
+                    const port = chrome.runtime.connect({ name: STREAM_PORT_NAME });
                     let lastFullText = '';
 
                     port.onMessage.addListener((msg) => {

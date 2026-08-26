@@ -9,25 +9,9 @@
  */
 
 import { getPageType, extractPageId } from '../utils/page-detection.js';
+import { MIN_CONTENT_LENGTH } from '../constants.js';
 
 export class ContentExtractorService {
-    /**
-     * Detect page type from URL.
-     * @param {string} url
-     * @returns {'youtube' | 'generic'}
-     */
-    static getPageType(url) {
-        return getPageType(url);
-    }
-
-    /**
-     * Generate a stable page ID from a URL.
-     * @param {string} url
-     * @returns {string|null}
-     */
-    static extractPageId(url) {
-        return extractPageId(url);
-    }
 
     /**
      * Extract page metadata (title, source, thumbnail).
@@ -111,7 +95,8 @@ export class ContentExtractorService {
         if (tabId && chrome.scripting) {
             try {
                 const domScraped = await this._youtubeScrapeDom(tabId);
-                if (domScraped && domScraped.trim().length > 50) {
+                // Use MIN_CONTENT_LENGTH threshold for meaningful content
+                if (domScraped && domScraped.trim().length > MIN_CONTENT_LENGTH) {
                     console.log(`[Content Extractor] Scraped ${domScraped.length} chars from YouTube DOM`);
                     return domScraped;
                 }
@@ -124,7 +109,7 @@ export class ContentExtractorService {
         if (tabId) {
             try {
                 const domTranscript = await this._youtubeFetchFromContentScript(tabId);
-                if (domTranscript && domTranscript.trim().length > 50) {
+                if (domTranscript && domTranscript.trim().length > MIN_CONTENT_LENGTH) {
                     console.log(`[Content Extractor] Extracted ${domTranscript.length} chars via content script`);
                     return domTranscript;
                 }
@@ -137,9 +122,9 @@ export class ContentExtractorService {
         if (tabId && chrome.scripting) {
             try {
                 const pageTranscript = await this._youtubeExtractFromPlayer(tabId);
-                if (pageTranscript && pageTranscript.trim().length > 50) {
+                if (pageTranscript && pageTranscript.trim().length > MIN_CONTENT_LENGTH) {
                     const parsed = this._parseTimedTextContent(pageTranscript);
-                    if (parsed && parsed.length > 50) {
+                    if (parsed && parsed.length > MIN_CONTENT_LENGTH) {
                         console.log('[Content Extractor] Extracted transcript via in-page movie_player');
                         return parsed;
                     }
@@ -152,7 +137,7 @@ export class ContentExtractorService {
         // Strategy 4: Android Innertube Client
         try {
             const innertubeTranscript = await this._youtubeInnertubeApi(videoId);
-            if (innertubeTranscript && innertubeTranscript.trim().length > 50) {
+            if (innertubeTranscript && innertubeTranscript.trim().length > MIN_CONTENT_LENGTH) {
                 console.log(`[Content Extractor] Extracted ${innertubeTranscript.length} chars via Android Innertube`);
                 return innertubeTranscript;
             }
@@ -170,6 +155,11 @@ export class ContentExtractorService {
         const results = await chrome.scripting.executeScript({
             target: { tabId },
             func: () => {
+                /**
+                 * @sync-with content.js — extractTextFromSeg()
+                 * Inlined here because executeScript serializes the function;
+                 * it cannot reference external imports.
+                 */
                 function extractTextFromSeg(seg) {
                     if (!seg) return '';
                     const selectors = [

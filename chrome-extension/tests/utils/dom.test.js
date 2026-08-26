@@ -68,6 +68,11 @@ describe('formatMarkdown', () => {
         expect(result).toContain('<br/>');
     });
 
+    it('converts literal escaped newlines to line breaks', () => {
+        const result = formatMarkdown('Question text\\n\\nMore text');
+        expect(result).toBe('Question text<br/><br/>More text');
+    });
+
     it('converts markdown links to anchor tags', () => {
         const result = formatMarkdown('Check out [YouTube](https://www.youtube.com/watch?v=123)');
         expect(result).toContain('<a href="https://www.youtube.com/watch?v=123" target="_blank" rel="noopener noreferrer">YouTube</a>');

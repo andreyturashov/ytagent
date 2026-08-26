@@ -4,6 +4,7 @@
  */
 
 import { localDB } from './services/storage.js';
+import { MIN_CONTENT_LENGTH } from './constants.js';
 import { ContentExtractorService } from './services/content-extractor.js';
 import { getActiveTab, extractPageId, getPageType } from './utils/page-detection.js';
 import { getEl } from './utils/dom.js';
@@ -92,7 +93,7 @@ async function detectCurrentPage() {
 
         // 1. Check local IndexedDB for cached content
         let pageRecord = await localDB.getPage(pageId);
-        const hasCachedContent = pageRecord && pageRecord.content && pageRecord.content.trim().length > 50;
+        const hasCachedContent = pageRecord && pageRecord.content && pageRecord.content.trim().length > MIN_CONTENT_LENGTH;
 
         // 2. Fetch metadata only (lightweight)
         const meta = await ContentExtractorService.extractMetadata(pageId, tab.id, tab.url);
@@ -177,7 +178,7 @@ async function handleFetchContent() {
             currentTab.url || ''
         );
 
-        if (content && content.trim().length > 50) {
+        if (content && content.trim().length > MIN_CONTENT_LENGTH) {
             if (!currentPageData) {
                 currentPageData = { page_id: currentPageId };
             }
@@ -225,9 +226,6 @@ function initEventDelegation() {
         // Clear chat history
         if (e.target.closest('#action-clear')) {
             e.preventDefault();
-            if (typeof localDB.clearAllMessages === 'function') {
-                await localDB.clearAllMessages();
-            }
             if (currentPageId) {
                 await localDB.clearMessages(currentPageId);
             }

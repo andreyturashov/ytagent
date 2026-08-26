@@ -175,6 +175,12 @@ function findTranscriptButton() {
     return null;
 }
 
+/**
+ * Extract text content from a transcript segment element.
+ *
+ * @sync-with src/services/content-extractor.js — _youtubeScrapeDom() inline copy
+ * Both copies perform the same DOM extraction; keep selector lists in sync.
+ */
 function extractTextFromSeg(seg) {
     if (!seg) return '';
     const selectors = [

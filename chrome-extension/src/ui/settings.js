@@ -6,6 +6,7 @@
 import { getEl } from '../utils/dom.js';
 import { SettingsService } from '../services/storage.js';
 import { AIService } from '../services/ai.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../constants.js';
 
 /**
  * Load user settings and check Gemini Nano availability.
@@ -104,7 +105,7 @@ export async function saveSettingsHandler(currentPageId) {
     const saveHistoryToggle = getEl('save-history-toggle');
 
     const updated = {
-        systemPrompt: systemPromptInput?.value?.trim() || 'You are a helpful, direct AI assistant. Answer user questions naturally as a plain conversation. Provide short, highly useful answers, code snippets, and key information immediately without any meta-phrases like "According to the transcript", "The video says", or "Based on the article".',
+        systemPrompt: systemPromptInput?.value?.trim() || DEFAULT_SYSTEM_PROMPT,
         enableWebSearch: Boolean(webSearchToggle ? webSearchToggle.checked : true),
         saveChatHistory: Boolean(saveHistoryToggle ? saveHistoryToggle.checked : true)
     };

@@ -1,5 +1,8 @@
 /**
  * Background Service Worker (Manifest V3)
+ *
+ * NOTE: Service workers use classic script format — ES module imports are not
+ * available. Helper functions here are intentionally inlined.
  */
 
 // Configure side panel to open on action click if supported
@@ -11,14 +14,56 @@ if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
 
 /**
  * Resolve the Prompt API LanguageModel factory in Service Worker context.
+ *
+ * @sync-with src/services/ai.js — AIService.getLanguageModelApi()
+ * Both copies discover the same API; keep lookup order in sync.
  */
 function getLanguageModelApi() {
     if (typeof LanguageModel !== 'undefined') return LanguageModel;
-    if (typeof self !== 'undefined' && self.LanguageModel) return self.LanguageModel;
-    if (typeof self !== 'undefined' && self.ai?.languageModel) return self.ai.languageModel;
     if (typeof globalThis !== 'undefined' && globalThis.LanguageModel) return globalThis.LanguageModel;
     if (typeof globalThis !== 'undefined' && globalThis.ai?.languageModel) return globalThis.ai.languageModel;
+    if (typeof self !== 'undefined' && self.LanguageModel) return self.LanguageModel;
+    if (typeof self !== 'undefined' && self.ai?.languageModel) return self.ai.languageModel;
     return null;
+}
+
+/**
+ * Extract the incremental delta from a streaming chunk.
+ *
+ * @sync-with src/utils/streaming.js — extractStreamDelta()
+ * Inlined here because service workers cannot use ES module imports.
+ *
+ * @param {string} chunk - The latest chunk from the stream
+ * @param {string} previousFullText - Accumulated text from prior chunks
+ * @returns {{ delta: string, fullText: string }}
+ */
+function extractStreamDelta(chunk, previousFullText) {
+    if (typeof chunk !== 'string') {
+        return { delta: '', fullText: previousFullText || '' };
+    }
+
+    const prev = previousFullText || '';
+
+    // Pattern 1: Cumulative — chunk starts with the full previous text
+    if (chunk.startsWith(prev)) {
+        const delta = chunk.slice(prev.length);
+        return { delta, fullText: chunk };
+    }
+
+    // Pattern 2: Partial overlap — significant common prefix (≥60%)
+    let commonPrefixLen = 0;
+    const minLen = Math.min(chunk.length, prev.length);
+    while (commonPrefixLen < minLen && chunk[commonPrefixLen] === prev[commonPrefixLen]) {
+        commonPrefixLen++;
+    }
+
+    if (commonPrefixLen > 0 && commonPrefixLen >= prev.length * 0.6) {
+        const delta = chunk.slice(commonPrefixLen);
+        return { delta, fullText: chunk };
+    }
+
+    // Pattern 3: Pure delta — entirely new content, append to previous
+    return { delta: chunk, fullText: prev + chunk };
 }
 
 /**
@@ -65,6 +110,9 @@ async function checkNanoAvailability() {
     }
 }
 
+// Port name constant (keep in sync with src/constants.js STREAM_PORT_NAME)
+const STREAM_PORT_NAME = 'gemini-nano-stream';
+
 // 1. One-shot message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'checkNanoAvailability') {
@@ -103,7 +151,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // 2. Port connection listener for streaming responses
 chrome.runtime.onConnect.addListener((port) => {
-    if (port.name !== 'gemini-nano-stream') return;
+    if (port.name !== STREAM_PORT_NAME) return;
 
     let session = null;
     let isAborted = false;
@@ -137,28 +185,10 @@ chrome.runtime.onConnect.addListener((port) => {
 
                 for await (const chunk of stream) {
                     if (isAborted) break;
-                    if (typeof chunk === 'string') {
-                        if (chunk.startsWith(fullText)) {
-                            const delta = chunk.slice(fullText.length);
-                            fullText = chunk;
-                            port.postMessage({ type: 'chunk', delta, fullText });
-                        } else {
-                            let commonPrefixLen = 0;
-                            const minLen = Math.min(chunk.length, fullText.length);
-                            while (commonPrefixLen < minLen && chunk[commonPrefixLen] === fullText[commonPrefixLen]) {
-                                commonPrefixLen++;
-                            }
-
-                            if (commonPrefixLen > 0 && commonPrefixLen >= fullText.length * 0.6) {
-                                const delta = chunk.slice(commonPrefixLen);
-                                fullText = chunk;
-                                port.postMessage({ type: 'chunk', delta, fullText });
-                            } else {
-                                const delta = chunk;
-                                fullText += delta;
-                                port.postMessage({ type: 'chunk', delta, fullText });
-                            }
-                        }
+                    const result = extractStreamDelta(chunk, fullText);
+                    if (result.delta) {
+                        fullText = result.fullText;
+                        port.postMessage({ type: 'chunk', delta: result.delta, fullText });
                     }
                 }
                 if (!isAborted) {

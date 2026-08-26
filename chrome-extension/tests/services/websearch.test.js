@@ -76,6 +76,25 @@ describe('WebSearchService', () => {
         expect(result).toBeNull();
     });
 
+    it('extracts proposed topic when user responds affirmatively to assistant question', async () => {
+        const mockData = {
+            AbstractText: 'Season 17 of Expedition Unknown was announced for 2026.',
+            Answer: '',
+            RelatedTopics: [],
+        };
+        vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(mockFetchResponse(mockData));
+
+        const history = [
+            {
+                role: 'assistant',
+                content: 'Expedition Unknown is an adventure show.\n\nWould you like to know more about the upcoming season 17 of Expedition Unknown?'
+            }
+        ];
+
+        const result = await WebSearchService.search('yep, interesting', 'Expedition Unknown', history);
+        expect(result).toContain('Season 17 of Expedition Unknown');
+    });
+
     it('returns null on non-OK response', async () => {
         vi.spyOn(globalThis, 'fetch').mockResolvedValue(
             mockFetchResponse('Rate limited', { ok: false, status: 429 })

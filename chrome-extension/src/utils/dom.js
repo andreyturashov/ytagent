@@ -21,6 +21,7 @@ export function formatMarkdown(text) {
     if (!text) return '';
 
     let formatted = text
+        .replace(/\\n/g, '\n')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
