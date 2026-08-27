@@ -73,6 +73,16 @@ const chromeDeclarativeNetRequest = {
     updateDynamicRules: vi.fn(() => Promise.resolve()),
 };
 
+// --- chrome.contextMenus mock ---
+const chromeContextMenus = {
+    create: vi.fn(),
+    removeAll: vi.fn((cb) => { if (cb) cb(); }),
+    onClicked: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+    },
+};
+
 // --- Assemble global chrome object ---
 globalThis.chrome = {
     storage: {
@@ -83,6 +93,7 @@ globalThis.chrome = {
     runtime: chromeRuntime,
     sidePanel: chromeSidePanel,
     declarativeNetRequest: chromeDeclarativeNetRequest,
+    contextMenus: chromeContextMenus,
 };
 
 /**

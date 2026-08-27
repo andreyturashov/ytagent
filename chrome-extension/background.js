@@ -9,6 +9,61 @@ if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     });
 }
 
+// Register Context Menu on install / reload
+chrome.runtime.onInstalled.addListener(() => {
+    if (chrome.contextMenus && chrome.contextMenus.create) {
+        chrome.contextMenus.removeAll(() => {
+            chrome.contextMenus.create({
+                id: 'aist-ask-selection',
+                title: 'Ask AIst about this...',
+                contexts: ['selection']
+            });
+        });
+    }
+});
+
+// Handle Context Menu click
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+    chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+        if (info.menuItemId === 'aist-ask-selection' && info.selectionText) {
+            const text = info.selectionText.trim();
+            if (!text) return;
+
+            // 1. Open the side panel for this tab
+            if (chrome.sidePanel && chrome.sidePanel.open && tab?.id) {
+                try {
+                    await chrome.sidePanel.open({ tabId: tab.id });
+                } catch (err) {
+                    console.warn('Failed to open side panel from context menu:', err);
+                }
+            }
+
+            // 2. Save pending selection in storage (session/local fallback) for newly opened panel
+            const storage = chrome.storage.session || chrome.storage.local;
+            if (storage && storage.set) {
+                await storage.set({
+                    pendingSelection: {
+                        text,
+                        timestamp: Date.now(),
+                        pageUrl: tab?.url || '',
+                        pageTitle: tab?.title || ''
+                    }
+                });
+            }
+
+            // 3. Broadcast runtime message in case the side panel is already open
+            try {
+                chrome.runtime.sendMessage({
+                    type: 'aist_selection_query',
+                    text,
+                    pageUrl: tab?.url || '',
+                    pageTitle: tab?.title || ''
+                });
+            } catch (_) {}
+        }
+    });
+}
+
 /**
  * Resolve the Prompt API LanguageModel factory in Service Worker context.
  */
