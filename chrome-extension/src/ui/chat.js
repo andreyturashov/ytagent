@@ -192,7 +192,8 @@ export function appendMessage(sender, text, isError = false) {
 export function resetChatFeed() {
     const container = getEl('chat-messages');
     if (container) {
-        container.querySelectorAll('.message-row:not(:first-child)').forEach(el => el.remove());
+        container.querySelectorAll('.message-row:not(#typing)').forEach(el => el.remove());
+        container.querySelector('#fetch-content-container')?.remove();
     }
 }
 
@@ -225,30 +226,37 @@ export async function generateInitialBriefing(context) {
     if (isGenerating) return;
     if (!context || !context.currentPageId) return;
 
+    // Set the flag immediately to prevent concurrent calls from racing
+    // through the async DB check below
+    isGenerating = true;
+
     const pageData = context.currentPageData;
     const pageTitle = pageData?.title || 'this page';
     const hasContent = pageData?.content && pageData.content.trim().length > 30;
 
     // Check if we already have saved messages for this page
     const history = await localDB.getMessages(context.currentPageId);
-    if (history && history.length > 0) return;
+    if (history && history.length > 0) {
+        isGenerating = false;
+        return;
+    }
 
     if (!context.aiService || !context.aiService.isConfigured()) {
+        isGenerating = false;
         const fallbackMsg = `Welcome to **${pageTitle}**! Ensure Chrome Gemini Nano is enabled in chrome://flags to get instant local page analysis.`;
         appendMessage('assistant', fallbackMsg, false);
         return;
     }
 
     const briefingPrompt = hasContent
-        ? `Provide a brief 2-sentence summary of "${pageTitle}". Then on a new line (separated by a blank line \\n\\n), ask 1 simple Yes/No question offering more details (e.g. "Would you like to learn more about [main topic]?").`
-        : `Provide a brief 1-sentence summary of "${pageTitle}". Then on a new line (separated by a blank line \\n\\n), ask 1 simple Yes/No question offering more details (e.g. "Would you like to learn more about [main topic]?").`;
+        ? `Provide a brief 2-sentence summary of "${pageTitle}". Then, separated by a blank line, ask 1 simple Yes/No question offering more details about the main topic. CRITICAL: Your ENTIRE response — both the summary AND the question — MUST be in the same language as the page content. Do NOT mix languages.`
+        : `Provide a brief 1-sentence summary of "${pageTitle}". Then, separated by a blank line, ask 1 simple Yes/No question offering more details about the main topic. CRITICAL: Your ENTIRE response — both the summary AND the question — MUST be in the same language as the page content. Do NOT mix languages.`;
 
     setGenerating(true);
-    resetChatFeed();
-    const bubble = appendMessage('assistant', '');
 
     try {
         let responseText = '';
+        let bubble = null;
         await context.aiService.generateResponse({
             userPrompt: briefingPrompt,
             history: [],
@@ -257,11 +265,22 @@ export async function generateInitialBriefing(context) {
             pageUrl: pageData?.source_url || '',
             onChunk: (delta, fullText) => {
                 responseText = fullText;
-                bubble.innerHTML = formatMarkdown(fullText);
+                if (!bubble) {
+                    setGenerating(false);
+                    bubble = appendMessage('assistant', fullText);
+                } else {
+                    bubble.innerHTML = formatMarkdown(fullText);
+                }
+                const container = getEl('chat-messages');
+                if (container) container.scrollTop = container.scrollHeight;
             }
         });
 
-        if (!responseText) {
+        if (!bubble) {
+            setGenerating(false);
+            responseText = responseText || `Brief analysis for **${pageTitle}**: What aspect of this page interests you most?`;
+            bubble = appendMessage('assistant', responseText);
+        } else if (!responseText) {
             responseText = `Brief analysis for **${pageTitle}**: What aspect of this page interests you most?`;
             bubble.innerHTML = formatMarkdown(responseText);
         }
@@ -272,8 +291,9 @@ export async function generateInitialBriefing(context) {
         }
     } catch (err) {
         console.warn('Initial briefing generation failed:', err);
+        setGenerating(false);
         const fallbackMsg = `Analysis for **${pageTitle}**: What would you like to explore about this page?`;
-        bubble.innerHTML = formatMarkdown(fallbackMsg);
+        appendMessage('assistant', fallbackMsg);
     } finally {
         setGenerating(false);
     }

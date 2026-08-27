@@ -10,7 +10,7 @@ import { getEl } from './utils/dom.js';
 import { updateStatus } from './ui/status.js';
 import { showPageBanner } from './ui/page-banner.js';
 import { initSettings, saveSettingsHandler, checkGeminiNanoStatus } from './ui/settings.js';
-import { handleSendMessage, resetChatFeed, loadChatHistory, generateInitialBriefing, getIsGenerating } from './ui/chat.js';
+import { handleSendMessage, resetChatFeed, loadChatHistory, generateInitialBriefing, setGenerating, getIsGenerating } from './ui/chat.js';
 import { openContentOverlay, closeContentOverlay, handleResyncContent, handleSaveContent } from './ui/transcript.js';
 import { showFetchButton, hideFetchButton } from './ui/fetch-content.js';
 
@@ -22,6 +22,8 @@ let currentTab = null;
 let currentPageId = null;
 let currentPageData = null;
 let settings = null;
+let isDetecting = false;
+let isInitialLoad = true;
 let aiService = null;
 
 /**
@@ -55,6 +57,7 @@ async function bootstrap() {
     }
 
     await detectCurrentPage();
+    isInitialLoad = false;
 }
 
 // Ensure bootstrap runs regardless of document ready state
@@ -69,16 +72,19 @@ if (document.readyState === 'loading') {
 // ===================================================================
 
 async function detectCurrentPage() {
-    const tab = await getActiveTab();
-    currentTab = tab;
-
-    if (!tab || !tab.url) {
-        updateStatus('inactive', 'No Tab');
-        hideFetchButton();
-        return;
-    }
+    if (isDetecting) return;
+    isDetecting = true;
 
     try {
+        const tab = await getActiveTab();
+        currentTab = tab;
+
+        if (!tab || !tab.url) {
+            updateStatus('inactive', 'No Tab');
+            hideFetchButton();
+            return;
+        }
+
         const pageId = extractPageId(tab.url);
         if (!pageId) {
             updateStatus('inactive', 'No Page');
@@ -126,23 +132,37 @@ async function detectCurrentPage() {
         showPageBanner(pageRecord);
 
         // Update Status & show/hide fetch button
-        if (!hasCachedContent) {
-            const isYouTube = pageType === 'youtube';
-            updateStatus('warning', isYouTube ? 'Loading Transcript…' : 'Loading Content…');
-            showFetchButton(isYouTube);
-            handleFetchContent();
-        } else {
-            updateStatus('active', 'Ready');
-            hideFetchButton();
-        }
+        const isYouTube = pageType === 'youtube';
 
-        // Load existing messages or generate initial page briefing
-        await loadChatHistory(pageId, settings, getContext());
+        if (isInitialLoad) {
+            // First open: load chat or fetch content
+            if (hasCachedContent) {
+                updateStatus('active', 'Ready');
+                hideFetchButton();
+                await loadChatHistory(pageId, settings, getContext());
+            } else {
+                updateStatus('warning', isYouTube ? 'Loading Transcript…' : 'Loading Content…');
+                setGenerating(true);
+                handleFetchContent();
+            }
+        } else {
+            // Navigation while open: keep existing chat, update banner/status
+            if (hasCachedContent) {
+                updateStatus('active', 'Ready');
+                hideFetchButton();
+            } else {
+                updateStatus('warning', isYouTube ? 'Transcript Available' : 'Content Available');
+                hideFetchButton();
+                showFetchButton(isYouTube);
+            }
+        }
 
     } catch (err) {
         console.error('Page detection error:', err);
         updateStatus('inactive', 'Detection Error');
         hideFetchButton();
+    } finally {
+        isDetecting = false;
     }
 }
 
@@ -160,7 +180,10 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
 // ===================================================================
 
 async function handleFetchContent() {
-    if (!currentPageId || !currentTab) return;
+    if (!currentPageId || !currentTab) {
+        setGenerating(false);
+        return;
+    }
 
     const btn = getEl('fetch-content-btn');
     if (btn) {
@@ -186,24 +209,22 @@ async function handleFetchContent() {
             hideFetchButton();
             updateStatus('active', 'Ready');
 
-            // Trigger initial brief analysis for new page content
+            // Generate initial briefing with loading dots
             await generateInitialBriefing(getContext());
         } else {
+            setGenerating(false);
             updateStatus('warning', 'No Content Found');
-            if (btn) {
-                btn.disabled = false;
-                const pageType = getPageType(currentTab.url || '');
-                const isYouTube = pageType === 'youtube';
-                btn.innerHTML = isYouTube ? '📥 Get Transcript' : '📥 Get Page Content';
-            }
+            const pageType = getPageType(currentTab.url || '');
+            const isYouTube = pageType === 'youtube';
+            showFetchButton(isYouTube);
         }
     } catch (err) {
         console.error('Content fetch error:', err);
+        setGenerating(false);
         updateStatus('warning', 'Fetch Failed');
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = '⚠️ Retry';
-        }
+        const pageType = getPageType(currentTab?.url || '');
+        const isYouTube = pageType === 'youtube';
+        showFetchButton(isYouTube);
     }
 }
 
@@ -214,6 +235,18 @@ async function handleFetchContent() {
 function initEventDelegation() {
     // 1. Click events
     document.addEventListener('click', async (e) => {
+        // Open external links in new browser tab
+        const link = e.target.closest('a');
+        if (link && link.href && !link.getAttribute('href')?.startsWith('#') && !link.getAttribute('href')?.startsWith('javascript:')) {
+            e.preventDefault();
+            if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+                chrome.tabs.create({ url: link.href });
+            } else {
+                window.open(link.href, '_blank', 'noopener,noreferrer');
+            }
+            return;
+        }
+
         // Send button
         if (e.target.closest('#send')) {
             e.preventDefault();
@@ -239,6 +272,7 @@ function initEventDelegation() {
         // Fetch content button (the main new action)
         if (e.target.closest('#fetch-content-btn')) {
             e.preventDefault();
+            setGenerating(true);
             await handleFetchContent();
             return;
         }

@@ -456,6 +456,38 @@ export class ContentExtractorService {
                     // Helper: strip elements that are typically navigation/boilerplate
                     function cleanNode(container) {
                         const clone = container.cloneNode(true);
+
+                        // 1. Preserve embedded YouTube/Vimeo video links before removing iframes
+                        clone.querySelectorAll('iframe').forEach(iframe => {
+                            const src = iframe.getAttribute('src') || iframe.src || '';
+                            if (src) {
+                                const ytMatch = src.match(/(?:youtube\.com\/(?:embed\/|v\/|watch\?v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+                                if (ytMatch) {
+                                    const ytUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
+                                    const marker = document.createElement('p');
+                                    marker.textContent = `[YouTube Video: ${ytUrl}]`;
+                                    iframe.parentNode?.replaceChild(marker, iframe);
+                                }
+                            }
+                        });
+
+                        // 2. Preserve hyperlinks so actual URLs are present in extracted text
+                        clone.querySelectorAll('a[href]').forEach(a => {
+                            const href = a.getAttribute('href') || a.href || '';
+                            const text = (a.innerText || a.textContent || '').trim();
+                            if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+                                let absoluteUrl = href;
+                                try {
+                                    absoluteUrl = new URL(href, window.location.href).href;
+                                } catch (_) {}
+                                if (text && text !== absoluteUrl && !text.includes('http')) {
+                                    a.textContent = `[${text}](${absoluteUrl})`;
+                                } else if (!text) {
+                                    a.textContent = absoluteUrl;
+                                }
+                            }
+                        });
+
                         const removeSelectors = [
                             'nav', 'header', 'footer', 'aside',
                             'script', 'style', 'noscript', 'iframe',

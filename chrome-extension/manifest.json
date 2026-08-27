@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AIst",
-  "description": "AIst — Your local AI web & video assistant powered by Chrome Gemini Nano. Analyze YouTube transcripts, articles, docs and more. All data stays private in your browser.",
+  "description": "Local AI assistant powered by Chrome Gemini Nano. Analyze YouTube transcripts, web pages, and docs privately in your browser.",
   "version": "1.0.0",
   "icons": {
     "16": "icons/icon16.png",
