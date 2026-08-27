@@ -56,8 +56,19 @@ async function bootstrap() {
         console.error('Failed to init settings:', e);
     }
 
-    await detectCurrentPage();
+    const pending = await getPendingSelection();
+    const skipBriefing = Boolean(pending);
+
+    await detectCurrentPage({ skipBriefing });
     isInitialLoad = false;
+
+    if (pending) {
+        const storage = (typeof chrome !== 'undefined' && (chrome.storage?.session || chrome.storage?.local));
+        if (storage?.remove) {
+            await storage.remove('pendingSelection');
+        }
+        await handleSelectionQuery(pending.text);
+    }
 }
 
 // Ensure bootstrap runs regardless of document ready state
@@ -139,11 +150,13 @@ async function detectCurrentPage() {
             if (hasCachedContent) {
                 updateStatus('active', 'Ready');
                 hideFetchButton();
-                await loadChatHistory(pageId, settings, getContext());
+                await loadChatHistory(pageId, settings, getContext(), options.skipBriefing);
             } else {
                 updateStatus('warning', isYouTube ? 'Loading Transcript…' : 'Loading Content…');
-                setGenerating(true);
-                handleFetchContent();
+                if (!options.skipBriefing) {
+                    setGenerating(true);
+                }
+                await handleFetchContent({ skipBriefing: options.skipBriefing });
             }
         } else {
             // Navigation while open: keep existing chat, update banner/status
@@ -176,10 +189,57 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
 }
 
 // ===================================================================
+// Context Menu Selection Handling
+// ===================================================================
+
+/**
+ * Helper: fetch pending selection from session or local storage.
+ */
+async function getPendingSelection() {
+    const storage = (typeof chrome !== 'undefined' && (chrome.storage?.session || chrome.storage?.local));
+    if (!storage || !storage.get) return null;
+
+    try {
+        const data = await storage.get('pendingSelection');
+        if (data?.pendingSelection?.text) {
+            const selection = data.pendingSelection;
+            if (Date.now() - (selection.timestamp || 0) < 60000) {
+                return selection;
+            }
+        }
+    } catch (_) {}
+    return null;
+}
+
+/**
+ * Handle a query triggered by the context menu on selected text.
+ * @param {string} selectedText
+ */
+async function handleSelectionQuery(selectedText) {
+    if (!selectedText || !selectedText.trim()) return;
+    const cleanText = selectedText.trim();
+    const promptText = `Explain this selected text from the page in detail:\n"${cleanText}"`;
+    await handleSendMessage(getContext(), promptText);
+}
+
+// Listen for context menu actions when the side panel is already open
+if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener(async (msg) => {
+        if (msg?.type === 'aist_selection_query' && msg.text) {
+            const storage = chrome.storage?.session || chrome.storage?.local;
+            if (storage?.remove) {
+                storage.remove('pendingSelection');
+            }
+            await handleSelectionQuery(msg.text);
+        }
+    });
+}
+
+// ===================================================================
 // Explicit Content Fetch
 // ===================================================================
 
-async function handleFetchContent() {
+async function handleFetchContent(options = {}) {
     if (!currentPageId || !currentTab) {
         setGenerating(false);
         return;
@@ -209,8 +269,10 @@ async function handleFetchContent() {
             hideFetchButton();
             updateStatus('active', 'Ready');
 
-            // Generate initial briefing with loading dots
-            await generateInitialBriefing(getContext());
+            // Generate initial briefing with loading dots only if not skipped
+            if (!options.skipBriefing) {
+                await generateInitialBriefing(getContext());
+            }
         } else {
             setGenerating(false);
             updateStatus('warning', 'No Content Found');

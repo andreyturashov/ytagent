@@ -35,7 +35,8 @@
     "storage",
     "sidePanel",
     "scripting",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://*.youtube.com/*",

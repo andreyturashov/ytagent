@@ -218,17 +218,18 @@ export function setGenerating(generating) {
     }
 }
 
+let isBriefing = false;
+
 /**
  * Automatically generate a brief page analysis & engaging question for new pages.
  * @param {object} context - Shared application state
  */
 export async function generateInitialBriefing(context) {
-    if (isGenerating) return;
+    if (isBriefing) return;
     if (!context || !context.currentPageId) return;
 
-    // Set the flag immediately to prevent concurrent calls from racing
-    // through the async DB check below
-    isGenerating = true;
+    isBriefing = true;
+    setGenerating(true);
 
     const pageData = context.currentPageData;
     const pageTitle = pageData?.title || 'this page';
@@ -237,12 +238,14 @@ export async function generateInitialBriefing(context) {
     // Check if we already have saved messages for this page
     const history = await localDB.getMessages(context.currentPageId);
     if (history && history.length > 0) {
-        isGenerating = false;
+        isBriefing = false;
+        setGenerating(false);
         return;
     }
 
     if (!context.aiService || !context.aiService.isConfigured()) {
-        isGenerating = false;
+        isBriefing = false;
+        setGenerating(false);
         const fallbackMsg = `Welcome to **${pageTitle}**! Ensure Chrome Gemini Nano is enabled in chrome://flags to get instant local page analysis.`;
         appendMessage('assistant', fallbackMsg, false);
         return;
@@ -251,8 +254,6 @@ export async function generateInitialBriefing(context) {
     const briefingPrompt = hasContent
         ? `Provide a brief 2-sentence summary of "${pageTitle}". Then, separated by a blank line, ask 1 simple Yes/No question offering more details about the main topic. CRITICAL: Your ENTIRE response — both the summary AND the question — MUST be in the same language as the page content. Do NOT mix languages.`
         : `Provide a brief 1-sentence summary of "${pageTitle}". Then, separated by a blank line, ask 1 simple Yes/No question offering more details about the main topic. CRITICAL: Your ENTIRE response — both the summary AND the question — MUST be in the same language as the page content. Do NOT mix languages.`;
-
-    setGenerating(true);
 
     try {
         let responseText = '';
@@ -295,6 +296,7 @@ export async function generateInitialBriefing(context) {
         const fallbackMsg = `Analysis for **${pageTitle}**: What would you like to explore about this page?`;
         appendMessage('assistant', fallbackMsg);
     } finally {
+        isBriefing = false;
         setGenerating(false);
     }
 }
@@ -305,10 +307,10 @@ export async function generateInitialBriefing(context) {
  * @param {object} settings
  * @param {object} context
  */
-export async function loadChatHistory(pageId, settings = null, context = null) {
+export async function loadChatHistory(pageId, settings = null, context = null, skipBriefing = false) {
     resetChatFeed();
     if (settings && settings.saveChatHistory === false) {
-        if (context) {
+        if (context && !skipBriefing) {
             await generateInitialBriefing(context);
         }
         return;
@@ -319,7 +321,7 @@ export async function loadChatHistory(pageId, settings = null, context = null) {
         for (const msg of history) {
             appendMessage(msg.role, msg.content, false);
         }
-    } else if (context) {
+    } else if (context && !skipBriefing) {
         await generateInitialBriefing(context);
     }
 }
