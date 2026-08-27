@@ -68,7 +68,24 @@ export class WebSearchService {
     }
 
     /**
+     * Extract the main subject from a page title (strips site suffixes, branding, parentheses).
+     * @param {string} pageTitle
+     * @returns {string}
+     */
+    static extractMainTopic(pageTitle) {
+        if (!pageTitle) return '';
+        let cleaned = pageTitle
+            .replace(/\s*[-–—|•].*$/, '') // Remove site suffixes after separators
+            .replace(/\(.*?\)/g, '')      // Remove parenthetical details
+            .replace(/[^\w\s\u0400-\u04FF]/gi, ' ') // Support Latin & Cyrillic
+            .replace(/\s+/g, ' ')
+            .trim();
+        return cleaned.split(' ').slice(0, 5).join(' ');
+    }
+
+    /**
      * Search web with intelligent query resolution and history topic extraction.
+     * Always anchors queries with pronouns ("they", "it", "he") to the active topic/title.
      * @param {string} query - User search query
      * @param {string} pageTitle - Contextual page title
      * @param {Array} history - Prior conversation history
@@ -77,17 +94,24 @@ export class WebSearchService {
         if (!query || !query.trim()) return null;
         const userQuery = query.trim();
 
-        const cleanTitle = (pageTitle || '').replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
-        const shortTitle = cleanTitle ? cleanTitle.split(' ').slice(0, 4).join(' ') : '';
-        const isShortOrAmbiguous = userQuery.length < 35 || /^(yes|no|what else|more|tell me|is there|are there|how about|and|so|why)\b/i.test(userQuery);
+        const shortTitle = this.extractMainTopic(pageTitle);
 
-        // Pass 1: If pageTitle is available and query is contextual/ambiguous, search enriched query first
-        if (shortTitle && isShortOrAmbiguous) {
-            const contextualResults = await this.fetchDuckDuckGo(`${shortTitle} ${userQuery}`);
+        // Check if query is pronoun-heavy or referential (e.g. "Do they have...", "Where can I find it?")
+        const hasPronounOrReferential = /\b(they|them|their|theirs|it|its|he|him|his|she|her|this|that|these|those|the show|the channel|the video|the author|the creator|official)\b/i.test(userQuery);
+        const isFollowUpPattern = /^(yes|no|what else|more|tell me|is there|are there|how about|and|so|why|do they|does it|can i|where|who)\b/i.test(userQuery);
+        const titleWords = shortTitle ? shortTitle.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
+        const queryMentionsTitle = titleWords.some(w => userQuery.toLowerCase().includes(w));
+
+        const shouldEnrichWithTitle = shortTitle && (!queryMentionsTitle || hasPronounOrReferential || isFollowUpPattern);
+
+        // Pass 1: If contextual, search enriched query with page title first (e.g. "Expedition Unknown official youtube channel")
+        if (shouldEnrichWithTitle) {
+            const enrichedQuery = `${shortTitle} ${userQuery}`;
+            const contextualResults = await this.fetchDuckDuckGo(enrichedQuery);
             if (contextualResults) return contextualResults;
         }
 
-        // Pass 2: Try searching for the exact raw query
+        // Pass 2: Search for raw query if it's specific enough
         const rawResults = await this.fetchDuckDuckGo(userQuery);
         if (rawResults) return rawResults;
 
