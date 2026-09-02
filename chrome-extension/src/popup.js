@@ -82,7 +82,7 @@ if (document.readyState === 'loading') {
 // Page Detection
 // ===================================================================
 
-async function detectCurrentPage() {
+async function detectCurrentPage(options = {}) {
     if (isDetecting) return;
     isDetecting = true;
 
