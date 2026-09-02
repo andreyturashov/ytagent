@@ -102,6 +102,65 @@ export class AIService {
     }
 
     /**
+     * Detect the dominant language of user input via Unicode script analysis.
+     * Returns a language name string or null if English/undetermined.
+     * @param {string} text
+     * @returns {string|null}
+     */
+    static detectLanguage(text) {
+        if (!text || text.trim().length < 3) return null;
+        const clean = text.replace(/[0-9\s\p{P}\p{S}]/gu, '');
+        if (clean.length < 2) return null;
+
+        // Count characters by script
+        const scripts = {
+            cyrillic: 0,
+            latin: 0,
+            cjk: 0,
+            arabic: 0,
+            devanagari: 0,
+            hangul: 0,
+            thai: 0,
+            hebrew: 0,
+        };
+
+        for (const ch of clean) {
+            const cp = ch.codePointAt(0);
+            if (cp >= 0x0400 && cp <= 0x04FF) scripts.cyrillic++;
+            else if (cp >= 0x0500 && cp <= 0x052F) scripts.cyrillic++; // Cyrillic supplement
+            else if ((cp >= 0x0041 && cp <= 0x007A) || (cp >= 0x00C0 && cp <= 0x024F)) scripts.latin++;
+            else if ((cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3040 && cp <= 0x30FF)) scripts.cjk++;
+            else if (cp >= 0x0600 && cp <= 0x06FF) scripts.arabic++;
+            else if (cp >= 0x0900 && cp <= 0x097F) scripts.devanagari++;
+            else if (cp >= 0xAC00 && cp <= 0xD7AF) scripts.hangul++;
+            else if (cp >= 0x0E00 && cp <= 0x0E7F) scripts.thai++;
+            else if (cp >= 0x0590 && cp <= 0x05FF) scripts.hebrew++;
+        }
+
+        const total = Object.values(scripts).reduce((a, b) => a + b, 0);
+        if (total < 2) return null;
+
+        // Find dominant script
+        const dominant = Object.entries(scripts).sort((a, b) => b[1] - a[1])[0];
+        const ratio = dominant[1] / total;
+
+        // Only report non-English languages (Latin script = likely English, handled by default)
+        if (ratio < 0.4) return null;
+
+        const langMap = {
+            cyrillic: 'Russian/Ukrainian (Cyrillic)',
+            cjk: 'Chinese/Japanese',
+            arabic: 'Arabic',
+            devanagari: 'Hindi',
+            hangul: 'Korean',
+            thai: 'Thai',
+            hebrew: 'Hebrew',
+        };
+
+        return langMap[dominant[0]] || null;
+    }
+
+    /**
      * Generate response using on-device Gemini Nano with optional streaming.
      * Tries direct API first, falls back to Background Service Worker port.
      */
@@ -128,7 +187,7 @@ export class AIService {
             : '';
 
         const topicName = WebSearchService.extractMainTopic(pageTitle) || pageTitle || 'the current page';
-        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nCRITICAL KNOWLEDGE & ANSWER INSTRUCTIONS:\n1. NEVER REFUSE OR DISCLAIM: STRICTLY FORBIDDEN PHRASES: Never write "The provided text does not contain...", "The text doesn't mention...", "I cannot fulfill your request based solely on the transcript...", "According to the transcript...", or any meta-disclaimers.\n2. FULFILL REQUESTS IMMEDIATELY: Whenever the user asks for code samples, examples, explanations, facts, history, or details, IMMEDIATELY write the requested content using your general knowledge and web search results!\n3. STRICT TOPIC & PRONOUN ALIGNMENT: ALWAYS interpret pronouns ("they", "it", "he", "she", "the show", "the video", "the channel", "the author") in the context of "${topicName}". NEVER drift to generic entities (e.g. if the topic is a show and user asks "Do they have a youtube channel?", answer specifically about the show's channel, not YouTube itself).\n4. NO OPEN-ENDED QUESTIONS: NEVER ask open-ended opinion questions that demand long answers.\n5. UNIQUE YES/NO FOLLOW-UP: ALWAYS end with 1 short Yes/No question offering to dive deeper into a SPECIFIC aspect of what you just discussed. The question MUST be different every time — never repeat a previous follow-up. Make it specific to the content, not generic.\n6. PARAGRAPH SEPARATION: ALWAYS place the final Yes/No question on its own separate paragraph, separated by a blank line, at the very end of your response.\n7. When asked for links, provide markdown links: [Title](URL).`;
+        const enhancedSystemPrompt = `${this.systemPrompt}\n${contextBlock}${historyBlock}${webSearchBlock}\nCRITICAL KNOWLEDGE & ANSWER INSTRUCTIONS:\n1. NEVER REFUSE OR DISCLAIM: STRICTLY FORBIDDEN PHRASES: Never write "The provided text does not contain...", "The text doesn't mention...", "I cannot fulfill your request based solely on the transcript...", "According to the transcript...", "The provided transcript does not contain information about...", "my response is based solely on the text provided", or any meta-disclaimers. THESE PHRASES ARE ABSOLUTELY BANNED.\n2. FULFILL REQUESTS IMMEDIATELY: Whenever the user asks for code samples, examples, explanations, facts, history, or details, IMMEDIATELY write the requested content using your general knowledge and web search results!\n3. STRICT TOPIC & PRONOUN ALIGNMENT: ALWAYS interpret pronouns ("they", "it", "he", "she", "the show", "the video", "the channel", "the author") in the context of "${topicName}". NEVER drift to generic entities (e.g. if the topic is a show and user asks "Do they have a youtube channel?", answer specifically about the show's channel, not YouTube itself).\n4. NO OPEN-ENDED QUESTIONS: NEVER ask open-ended opinion questions that demand long answers.\n5. UNIQUE YES/NO FOLLOW-UP: ALWAYS end with 1 short Yes/No question offering to dive deeper into a SPECIFIC aspect of what you just discussed. The question MUST be different every time — never repeat a previous follow-up. Make it specific to the content, not generic.\n6. PARAGRAPH SEPARATION: ALWAYS place the final Yes/No question on its own separate paragraph, separated by a blank line, at the very end of your response.\n7. When asked for links, provide markdown links: [Title](URL).\n8. OFF-TOPIC QUESTIONS: If the user asks about something NOT covered in the page content, answer it anyway using WEB SEARCH CONTEXT (if available above) or your general knowledge. The page context is just supplementary — you are a general-purpose assistant. Never say you cannot answer because the page does not mention something.`;
 
         // Build final conversation prompt with system instruction & context prepended
         let promptBody = '';
@@ -143,7 +202,13 @@ export class AIService {
             promptBody = `User: ${userPrompt}\nAssistant:`;
         }
 
-        const fullPrompt = `${enhancedSystemPrompt}\n\n${promptBody}`;
+        // Detect user language and inject explicit directive
+        const detectedLang = AIService.detectLanguage(userPrompt);
+        const langDirective = detectedLang
+            ? `\n\n[MANDATORY RESPONSE LANGUAGE: You MUST write your ENTIRE response in ${detectedLang}. Do NOT use English unless the user wrote in English.]`
+            : '';
+
+        const fullPrompt = `${enhancedSystemPrompt}${langDirective}\n\n${promptBody}`;
 
         const directApi = AIService.getLanguageModelApi();
 

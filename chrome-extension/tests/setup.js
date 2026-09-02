@@ -68,11 +68,6 @@ const chromeSidePanel = {
     setPanelBehavior: vi.fn(() => Promise.resolve()),
 };
 
-// --- chrome.declarativeNetRequest mock ---
-const chromeDeclarativeNetRequest = {
-    updateDynamicRules: vi.fn(() => Promise.resolve()),
-};
-
 // --- chrome.contextMenus mock ---
 const chromeContextMenus = {
     create: vi.fn(),
@@ -92,7 +87,6 @@ globalThis.chrome = {
     scripting: chromeScripting,
     runtime: chromeRuntime,
     sidePanel: chromeSidePanel,
-    declarativeNetRequest: chromeDeclarativeNetRequest,
     contextMenus: chromeContextMenus,
 };
 

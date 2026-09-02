@@ -99,21 +99,39 @@ export class WebSearchService {
         // Check if query is pronoun-heavy or referential (e.g. "Do they have...", "Where can I find it?")
         const hasPronounOrReferential = /\b(they|them|their|theirs|it|its|he|him|his|she|her|this|that|these|those|the show|the channel|the video|the author|the creator|official)\b/i.test(userQuery);
         const isFollowUpPattern = /^(yes|no|what else|more|tell me|is there|are there|how about|and|so|why|do they|does it|can i|where|who)\b/i.test(userQuery);
+
+        // Check word overlap between query and page topic
         const titleWords = shortTitle ? shortTitle.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
-        const queryMentionsTitle = titleWords.some(w => userQuery.toLowerCase().includes(w));
+        const queryWords = userQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const queryMentionsTitle = titleWords.some(w => queryWords.includes(w));
 
+        // Detect OFF-TOPIC queries: long enough, no pronoun references, no follow-up pattern,
+        // and zero word overlap with page title
+        const isLikelyOffTopic = userQuery.length > 20
+            && !hasPronounOrReferential
+            && !isFollowUpPattern
+            && !queryMentionsTitle
+            && titleWords.length > 0;
+
+        // For off-topic queries, search raw query FIRST (don't pollute with page title)
+        if (isLikelyOffTopic) {
+            const rawResults = await this.fetchDuckDuckGo(userQuery);
+            if (rawResults) return rawResults;
+        }
+
+        // For contextual queries, enrich with page title
         const shouldEnrichWithTitle = shortTitle && (!queryMentionsTitle || hasPronounOrReferential || isFollowUpPattern);
-
-        // Pass 1: If contextual, search enriched query with page title first (e.g. "Expedition Unknown official youtube channel")
-        if (shouldEnrichWithTitle) {
+        if (shouldEnrichWithTitle && !isLikelyOffTopic) {
             const enrichedQuery = `${shortTitle} ${userQuery}`;
             const contextualResults = await this.fetchDuckDuckGo(enrichedQuery);
             if (contextualResults) return contextualResults;
         }
 
-        // Pass 2: Search for raw query if it's specific enough
-        const rawResults = await this.fetchDuckDuckGo(userQuery);
-        if (rawResults) return rawResults;
+        // Fallback: raw query search (for contextual queries where enriched search missed)
+        if (!isLikelyOffTopic) {
+            const rawResults = await this.fetchDuckDuckGo(userQuery);
+            if (rawResults) return rawResults;
+        }
 
         // Pass 3: Extract topic from conversation history if follow-up
         if (history && history.length > 0) {

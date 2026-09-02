@@ -35,7 +35,6 @@
     "storage",
     "sidePanel",
     "scripting",
-    "declarativeNetRequest",
     "contextMenus"
   ],
   "host_permissions": [
