@@ -35,12 +35,13 @@ AIst is designed from the ground up as a **100% private, on-device AI assistant*
 
 AIst requests the minimum set of permissions necessary to function:
 
-- **`tabs` / `activeTab`**: Allows AIst to read the title and URL of the active tab so it can provide relevant summaries.
-- **`storage`**: Saves your preferences and session state locally on your device.
-- **`sidePanel`**: Renders the extension interface docked alongside your active tab.
-- **`scripting`**: Extracts readable text and YouTube transcripts from the current page when requested.
-- **`contextMenus`**: Enables the "Ask AIst about this..." right-click option for highlighted text.
-- **Host Permissions (`youtube.com`, `duckduckgo.com`)**: Allows fetching YouTube transcripts/oEmbed metadata and instant web search grounding directly from your browser.
+- **`contextMenus`**: Adds an "Ask AIst about this..." right-click menu item for highlighted text on any page.
+- **`tabs`**: Reads the title and URL of the active tab so the AI assistant can provide context-aware summaries.
+- **`activeTab`**: Accesses the active tab when the extension action or context menu is clicked.
+- **`storage`**: Persists user settings, prompt preferences, and session state locally on the user's device.
+- **`sidePanel`**: Renders the AIst chat interface docked inside Chrome's side panel alongside active web pages.
+- **`scripting`**: Injects isolated content extraction functions to read YouTube transcripts and article body text.
+- **Host Permissions (`youtube.com`, `duckduckgo.com`, `<all_urls>`)**: Enables fetching YouTube transcripts/metadata, DuckDuckGo instant web search grounding, and page content extraction across web pages.
 
 ---
 
